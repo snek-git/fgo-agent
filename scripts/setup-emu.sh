@@ -8,6 +8,8 @@ docker compose -f emu/compose.yaml up -d --build
 for _ in $(seq 1 60); do
   if [ "$(docker exec fgo-redroid getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
     adb connect 127.0.0.1:5555
+    # The "viewing full screen" hint steals focus from the game on first launch.
+    adb -s 127.0.0.1:5555 shell settings put secure immersive_mode_confirmations confirmed
     echo "redroid is up: scrcpy -s 127.0.0.1:5555"
     exit 0
   fi

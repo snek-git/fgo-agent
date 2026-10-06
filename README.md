@@ -5,7 +5,9 @@ A harness that lets an AI agent (Claude Code, through MCP) play Fate/Grand Order
 - **Emulator**: [redroid](https://github.com/remote-android/redroid-doc) Android 13 in Docker,
   with Google's libndk ARM translation from a ChromeOS R136 build
   ([prebuilts](https://github.com/supremegamers/vendor_google_proprietary_ndk_translation-prebuilt)).
-  The older 0.2.3 build crashes on Unity 6 (`SEVL`). `su` removed and release-keys build props.
+  The older 0.2.3 build crashes on Unity 6 (`SEVL`). [MindTheGapps](https://github.com/s1204IT/MindTheGappsBuilder)
+  for Play Services: without it Firebase never starts and FGO's data download dies with a
+  duplicate-key error. `su` removed and release-keys build props.
   GPU is the Radeon iGPU (`renderD129`): the image's Mesa 24.0 can't drive the RDNA 4 card.
 - **Vision**: 720p templates and screen coordinates from
   [FGA](https://github.com/Fate-Grand-Automata/FGA) (MIT, see `src/fgo_agent/assets/FGA-LICENSE`).

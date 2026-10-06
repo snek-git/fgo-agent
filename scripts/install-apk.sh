@@ -33,3 +33,13 @@ case "$file" in
 esac
 
 adb -s "$SERIAL" shell pm list packages | grep -i fategrandorder
+
+# vold can't set quota project ids on a btrfs-backed /data, so Android never creates the app's
+# external cache dir. Make it by hand, owned like the files dir next to it.
+docker exec fgo-redroid sh -c '
+  pkg=com.aniplex.fategrandorder
+  owner=$(stat -c %U /data/data/$pkg)
+  d=/data/media/0/Android/data/$pkg
+  mkdir -p $d/files $d/cache
+  chown $owner:ext_data_rw $d $d/files $d/cache
+  chmod 2770 $d $d/files $d/cache'
