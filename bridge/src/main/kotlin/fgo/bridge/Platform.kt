@@ -78,7 +78,7 @@ class AssetImageLoader @Inject constructor(
 /** FGA's script messages go to stderr; stdout carries the bridge protocol. */
 @Singleton
 class StderrMessages @Inject constructor() : IScriptMessages {
-    override fun notify(action: ScriptNotify) = System.err.println("[fga] notify $action")
+    override fun notify(action: ScriptNotify) = System.err.println("[fga] notify ${action.javaClass.simpleName}")
     override fun log(item: ScriptLog) = System.err.println("[fga] ${describe(item)}")
 
     private fun describe(item: ScriptLog) = when (item) {

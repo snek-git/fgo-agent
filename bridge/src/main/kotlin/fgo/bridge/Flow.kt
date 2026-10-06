@@ -38,6 +38,9 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
     /** True once a battle ended (results seen), so the next battle starts a fresh run. */
     private var runEnded = false
 
+    /** FGA knows the card screen by flow, not by a detector; so does the bridge. */
+    private var cardsOpen = false
+
     private class Screen(val name: String, val check: () -> Boolean, val handle: (() -> Unit)?)
 
     // Not FGA's: its loop just keeps polling through loading screens, but advance() has to tell
@@ -117,8 +120,15 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
     }
 
     /** Which screen is up, without acting on it. */
-    fun screen(): String = useSameSnapIn {
+    fun screen(): String = if (cardsOpen) "cards" else useSameSnapIn {
         screens.firstOrNull { it.check() }?.name ?: "unknown"
+    }
+
+    /** The agent can reach a battle through look() as well as advance(), so act/cards set up the turn too. */
+    private fun requireCommandScreen() {
+        require(!cardsOpen) { "the card screen is open: play_cards or close_cards first" }
+        require(battle.isIdle()) { "not on the battle command screen" }
+        startTurn()
     }
 
     /**
@@ -146,7 +156,15 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
                     }
                     match.handle != null -> match.handle.invoke()
                     else -> {
-                        if (match.name == "battle") startTurn()
+                        when (match.name) {
+                            "battle" -> startTurn()
+                            // Like AutoBattle.menu()/repeatQuest(): the battle is over, so the
+                            // next one starts a new run (also covers losses, which skip results)
+                            "menu", "support", "repeat" -> {
+                                isInBattle = false
+                                runEnded = runEnded || state.stage != -1
+                            }
+                        }
                         return match.name
                     }
                 }
@@ -188,6 +206,7 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
     fun act(command: String) {
         val stages = AutoSkillCommand.parse(command).stages
         require(stages.size == 1 && stages[0].size == 1) { "one turn at a time: no ',' or '#'" }
+        requireCommandScreen()
         for (action in stages[0][0]) {
             when (action) {
                 is AutoSkillAction.Atk -> require(action.nps.isEmpty() && action.cardsBeforeNP == 0) {
@@ -203,22 +222,29 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
     }
 
     /** Battle.clickAttack(): open the cards and parse them with FGA's CardParser. */
-    fun cards(): List<ParsedCard> = battle.clickAttack()
+    fun cards(): List<ParsedCard> {
+        requireCommandScreen()
+        return battle.clickAttack().also { cardsOpen = true }
+    }
 
     /** Leave the card screen (AttackScreenLocations.backClick). */
     fun back() {
+        require(cardsOpen) { "the card screen is not open" }
         locations.attack.backClick.click()
         locations.battle.screenCheckRegion.exists(images[Images.BattleScreen], 5.seconds)
+        cardsOpen = false
     }
 
     /** Card.clickCommandCards() with the agent's picks instead of card priority. */
     fun play(nps: List<Int>, faces: List<Int>, cardsBeforeNp: Int) {
+        require(cardsOpen) { "open the cards first" }
         require(nps.size + faces.size in 1..3) { "pick 1 to 3 cards in total" }
         require(cardsBeforeNp in 0..faces.size) { "cards_before_np is more than the face cards picked" }
         val face = faces.map { CommandCard.Face.list[it - 1] }
         face.take(cardsBeforeNp).forEach { caster.use(it) }
         nps.forEach { caster.use(CommandCard.NP.list[it - 1]) }
         face.drop(cardsBeforeNp).forEach { caster.use(it) }
+        cardsOpen = false
         turnStarted = false
         0.5.seconds.wait()
     }
