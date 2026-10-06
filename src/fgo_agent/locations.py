@@ -107,6 +107,7 @@ RESULT_MASTER_EXP = area(CX, 350, 400, 110)
 RESULT_MASTER_LVL = area(CX + 710, 160, 250, 270)
 RESULT_BOND = area(CX + 720, 600, 120, 400)
 RESULT_CLICK = at(CX + 320, 1350)
+RESULT_MAT_REWARDS = area(CX + 800, 1220, 280, 130)  # mat_rewards.png, the drops screen's 次へ button
 QUEST_REWARD_CHECK = area(CX + 350, 140, 370, 250)
 REPEAT_CHECK = area(CX + 120, 1000, 800, 300)
 WITHDRAW_CHECK = area(CX - 880, 540, 1800, 333)

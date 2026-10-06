@@ -40,6 +40,7 @@ class Game:
             ("result", lambda: exists(g, "result.png", L.RESULT_CHECK)
                 or exists(g, "master_lvl_up.png", L.RESULT_MASTER_LVL)
                 or exists(g, "master_exp.png", L.RESULT_MASTER_EXP)),
+            ("result_drops", lambda: exists(g, "mat_rewards.png", L.RESULT_MAT_REWARDS)),
             ("quest_reward", lambda: exists(g, "questreward.png", L.QUEST_REWARD_CHECK)),
             ("repeat_prompt", lambda: exists(g, "repeat.png", L.REPEAT_CHECK)),
             ("withdraw_prompt", lambda: exists(g, "withdraw.png", L.WITHDRAW_CHECK)),
@@ -169,17 +170,25 @@ class Game:
     def advance_results(self, max_taps: int = 25) -> str:
         """Tap through result / bond / exp / drop screens. Only starts from a detected result
         screen, so it never taps blind on menus that might spend something."""
+        results = {"result", "result_bond", "quest_reward", "result_drops"}
         _, g = self.capture()
         current = self.screen(g)
-        if current not in {"result", "result_bond", "quest_reward"}:
+        if current not in results:
             return current
+        idle = 0
         for _ in range(max_taps):
             _, g = self.capture()
             current = self.screen(g)
-            if current not in {"result", "result_bond", "quest_reward", "unknown", "black_screen"}:
+            if current == "result_drops":
+                x, y, w, h = L.RESULT_MAT_REWARDS
+                self.device.tap(x + w // 2, y + h // 2)
+            elif current in results:
+                self.device.tap(*L.RESULT_CLICK)
+            elif current in ("unknown", "black_screen") and idle < 5:
+                idle += 1  # transition between result pages: wait, never tap blind
+            else:
                 return current
-            self.device.tap(*L.RESULT_CLICK)
-            time.sleep(0.6)
+            time.sleep(0.8)
         return current
 
 
