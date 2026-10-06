@@ -1,0 +1,3 @@
+[submodule "vendor/FGA"]
+	path = vendor/FGA
+	url = https://github.com/Fate-Grand-Automata/FGA

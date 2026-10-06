@@ -1,4 +1,8 @@
-"""MCP server that lets an AI agent see and play FGO in the redroid container."""
+"""MCP server that lets an AI agent see and play FGO in the redroid container.
+
+Battle mechanics (when the game is ready, casting, targeting, cards, the screens between turns)
+run in FGA's own code through the bridge. The agent makes every decision.
+"""
 
 import json
 import time
@@ -6,52 +10,76 @@ import time
 from mcp.server.mcpserver import Image, MCPServer
 
 from . import atlas
-from . import locations as L
-from .game import Game, encode_jpeg
+from .bridge import Bridge
+from .device import Device, encode_jpeg
 
 INSTRUCTIONS = """\
 You are playing Fate/Grand Order (JP) on an Android container. The screen is 1280x720 and
-every x,y in these tools uses those pixels, so read positions straight off the screenshot.
-Start with `look`. In battle prefer the battle tools over raw taps: they know where skills,
-targets and cards are. Use raw `tap` for menus, story and anything else.
-Servants, skill slots, enemies and cards are numbered left to right from 1.
-Before starting a quest, read its Japanese name off the screen, call `find_quest`, then
-`prepare_battle` with the quest id and your party so you know every wave's enemies and your
-own kit. `lookup_servant` gives any servant's skills, NP and deck.
+tap/swipe coordinates are those pixels, so read positions straight off the screenshot.
+Start with `look`. After anything that starts animations or loading (a battle turn, starting a
+quest, leaving results) call `advance`: it runs FGA's handling of story skip, results, drops,
+bond and wave transitions, and returns when you have a decision to make.
+In battle, act with FGA's skill notation (`act`), then `open_cards` and `play_cards`.
+Before a quest, read its Japanese name off the screen, call `find_quest`, then `prepare_battle`
+so you know every wave's enemies and your own kit.
 Never spend Saint Quartz, buy anything, or summon unless the user told you to."""
 
 mcp = MCPServer("fgo", instructions=INSTRUCTIONS)
-_game: Game | None = None
+_device: Device | None = None
+_bridge: Bridge | None = None
 _brief: str | None = None
 
 
-def game() -> Game:
-    global _game
-    if _game is None:
-        _game = Game()
-    return _game
+def device() -> Device:
+    global _device
+    if _device is None:
+        _device = Device()
+    return _device
 
 
-def _view(note: str | None = None) -> list:
-    state, image = game().observe()
-    if note:
-        state["note"] = note
-    if _brief and state["screen"] in ("battle_command", "card_select"):
+def bridge() -> Bridge:
+    global _bridge
+    if _bridge is None:
+        _bridge = Bridge()
+    return _bridge
+
+
+def _view(state: dict | None = None) -> list:
+    state = dict(state or {})
+    if "screen" not in state:
+        state["screen"] = bridge().call("screen")["screen"]
+    if state["screen"] == "battle" and "battle" not in state:
+        state["battle"] = bridge().call("battle")["battle"]
+    if _brief and state["screen"] == "battle":
         state["brief"] = "battle brief loaded, call battle_brief to re-read it"
+    image = device().screenshot()
     return [json.dumps(state), Image(data=encode_jpeg(image), format="jpeg")]
 
 
 @mcp.tool()
 def look() -> list:
-    """Screenshot plus parsed state: which screen is up, servants on field, and card
-    types and affinity while on the card screen."""
+    """Screenshot plus FGA's reading of which screen is up (battle, menu, support, repeat,
+    ap_refill, withdraw, ...; "unknown" when none of FGA's detectors match). In battle it
+    adds the wave, the turn within that wave, and which party member (1-6) is in each field
+    slot (1-3)."""
     return _view()
 
 
 @mcp.tool()
+def advance(timeout: int = 120) -> list:
+    """Let FGA's loop run until there is a decision for you: it skips story, taps through
+    result, bond, drops and reward screens, rejects friend requests, waits out NP and wave
+    animations. Returns the screen it stopped on: battle (your turn), menu, support, repeat,
+    ap_refill, withdraw, inventory_full, unknown (nothing matched and the screen is still),
+    or timeout."""
+    return _view(bridge().call("advance", timeout=timeout))
+
+
+@mcp.tool()
 def tap(x: int, y: int, wait: float = 1.0) -> list:
-    """Tap at screen pixel (x, y), wait `wait` seconds, then return a fresh look."""
-    game().device.tap(x, y)
+    """Tap at screen pixel (x, y), wait `wait` seconds, then return a fresh look.
+    For menus and anything outside battle."""
+    device().tap(x, y)
     time.sleep(wait)
     return _view()
 
@@ -59,7 +87,7 @@ def tap(x: int, y: int, wait: float = 1.0) -> list:
 @mcp.tool()
 def swipe(x1: int, y1: int, x2: int, y2: int, ms: int = 400, wait: float = 1.0) -> list:
     """Swipe between two screen pixels (scroll lists), then return a fresh look."""
-    game().device.swipe(x1, y1, x2, y2, ms)
+    device().swipe(x1, y1, x2, y2, ms)
     time.sleep(wait)
     return _view()
 
@@ -67,14 +95,14 @@ def swipe(x1: int, y1: int, x2: int, y2: int, ms: int = 400, wait: float = 1.0) 
 @mcp.tool()
 def back(wait: float = 1.0) -> list:
     """Press Android back, then return a fresh look."""
-    game().device.back()
+    device().back()
     time.sleep(wait)
     return _view()
 
 
 @mcp.tool()
 def wait(seconds: float = 3.0) -> list:
-    """Do nothing for a while (loading, animations, max 60s), then return a fresh look."""
+    """Do nothing for a while (max 60s), then return a fresh look."""
     time.sleep(min(seconds, 60))
     return _view()
 
@@ -82,70 +110,49 @@ def wait(seconds: float = 3.0) -> list:
 @mcp.tool()
 def launch_fgo() -> list:
     """Start the FGO app if it is not running."""
-    if not game().device.fgo_running():
-        game().device.launch_fgo()
+    if not device().fgo_running():
+        device().launch_fgo()
         time.sleep(8)
     return _view()
 
 
 @mcp.tool()
-def use_skill(servant: int, skill: int, target: int | None = None) -> list:
-    """Battle: use servant (1-3) skill (1-3). Pass target (1-3) for skills aimed at one ally."""
-    return _view(f"screen after skill: {game().use_skill(servant, skill, target)}")
-
-
-@mcp.tool()
-def use_master_skill(skill: int, target: int | None = None) -> list:
-    """Battle: use mystic code skill (1-3), with optional ally target (1-3)."""
-    return _view(f"screen after master skill: {game().use_master_skill(skill, target)}")
-
-
-@mcp.tool()
-def target_enemy(enemy: int) -> list:
-    """Battle: focus enemy 1-3 (left to right) before attacking."""
-    game().target_enemy(enemy)
+def act(command: str) -> list:
+    """Battle, your turn: run actions with FGA's skill notation, through FGA's caster (it
+    confirms, targets and waits for each animation). One turn only, no ',' or '#'.
+    Servant skills by field slot: a b c (slot 1), d e f (slot 2), g h i (slot 3).
+    Ally target right after the skill: 1 2 3 (by field slot), e.g. "b1" = slot 1 skill 2 on
+    slot 1. Master skills: j k l. Enemy target: t1 t2 t3 are the fixed enemy positions in the
+    top HP-bar row, left to right; a wave with fewer enemies leaves some empty. Order change:
+    x then the starting member 1-3 and backline member 1-3, e.g. "x13". NP-charge command
+    spell: o then target. Several actions chain: "ad3j"."""
+    bridge().call("act", command=command)
     return _view()
 
 
 @mcp.tool()
 def open_cards() -> list:
-    """Battle: tap Attack to open card selection. The returned state lists card types and
-    affinity. Then call `play_cards`, or `close_cards` to go back for more skills."""
-    game().device.tap(*L.ATTACK)
-    game().wait_for({"card_select"}, timeout=10)
-    time.sleep(0.4)
-    return _view()
+    """Battle: press Attack and read the hand with FGA's card parser: type, weak/resist,
+    stunned, and which party member owns each card (servant 1-6, 0 unknown)."""
+    cards = bridge().call("cards")["cards"]
+    return _view({"screen": "cards", "cards": cards})
 
 
 @mcp.tool()
-def play_cards(cards: list[str]) -> list:
-    """Battle: on the open card screen, play picks in order, e.g. ["np1", "3", "5"].
-    Face cards are "1".."5" left to right, noble phantasms "np1".."np3" by servant.
-    Normally three picks; fewer only when the hand has fewer playable cards.
-    Waits until the turn resolves (up to 90s)."""
-    if not 1 <= len(cards) <= 3:
-        raise ValueError("pick 1 to 3 cards")
-    return _view(f"screen after attack: {game().play_cards(cards)}")
+def play_cards(cards: list[int], nps: list[int] | None = None, cards_before_np: int = 0) -> list:
+    """Battle, on the card screen: play noble phantasms `nps` (field slots 1-3) and face
+    cards `cards` (1-5 left to right, in play order), three picks in total. NPs go first
+    unless `cards_before_np` (0-2) says how many face cards come before them.
+    Then runs `advance` until the next decision."""
+    bridge().call("play", nps=nps or [], cards=cards, cards_before_np=cards_before_np)
+    return _view(bridge().call("advance", timeout=120))
 
 
 @mcp.tool()
 def close_cards() -> list:
-    """Battle: leave the card screen back to the command screen."""
-    game().device.tap(*L.CARD_BACK)
-    time.sleep(0.8)
+    """Battle: leave the card screen to use more skills."""
+    bridge().call("back")
     return _view()
-
-
-@mcp.tool()
-def advance_results() -> list:
-    """After a quest: tap through bond, exp and drop screens until something else shows."""
-    return _view(f"stopped on: {game().advance_results()}")
-
-
-@mcp.tool()
-def skip_story() -> list:
-    """Skip the current story scene (SKIP button top right, then confirm)."""
-    return _view("skipped story" if game().skip_story() else "no skip button showing")
 
 
 def _lookup(kind: str, matches: list[dict], describe, query: str) -> str:

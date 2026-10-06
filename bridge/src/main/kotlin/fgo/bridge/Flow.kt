@@ -1,0 +1,225 @@
+package fgo.bridge
+
+import io.github.fate_grand_automata.scripts.IFgoAutomataApi
+import io.github.fate_grand_automata.scripts.Images
+import io.github.fate_grand_automata.scripts.entrypoints.isInSupport
+import io.github.fate_grand_automata.scripts.entrypoints.isInventoryFull
+import io.github.fate_grand_automata.scripts.enums.GameServer
+import io.github.fate_grand_automata.scripts.enums.GameServers
+import io.github.fate_grand_automata.scripts.models.AutoSkillAction
+import io.github.fate_grand_automata.scripts.models.AutoSkillCommand
+import io.github.fate_grand_automata.scripts.models.CommandCard
+import io.github.fate_grand_automata.scripts.models.FieldSlot
+import io.github.fate_grand_automata.scripts.models.ParsedCard
+import io.github.lib_automata.Pattern
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
+
+/**
+ * Turn-by-turn play on top of FGA's modules. The agent decides what to do; FGA's code decides
+ * when the game is ready, how each action is performed, and how to get through the screens in
+ * between turns. The screen detectors are FGA's AutoBattle.loop() detectors, in the same order.
+ */
+class Flow(private val component: BridgeComponent) : IFgoAutomataApi by component.api() {
+    private val battle = component.battle()
+    private val caster = component.caster()
+    private val servantTracker = component.servantTracker()
+    private val stageTracker = component.stageTracker()
+    private val state = component.state()
+    private val connectionRetry = component.connectionRetry()
+    private val withdraw = component.withdraw()
+
+    /** Mirrors AutoBattle.isInBattle: gates the death-animation and between-waves checks. */
+    private var isInBattle = false
+
+    /** False after cards are played, until the next turn's bookkeeping has run. */
+    private var turnStarted = false
+
+    /** True once a battle ended (results seen), so the next battle starts a fresh run. */
+    private var runEnded = false
+
+    private class Screen(val name: String, val check: () -> Boolean, val handle: (() -> Unit)?)
+
+    // Not FGA's: its loop just keeps polling through loading screens, but advance() has to tell
+    // a loading screen apart from a still screen that waits for the agent. Cut from JP screens.
+    private val loadingTexts = listOf("loading.png", "connecting.png").map { name ->
+        Flow::class.java.getResourceAsStream("/$name")!!.use { CvPattern(it, isColor = false, tag = name) }
+    }
+    private val loadingRegion = io.github.lib_automata.Region(1760, 1280, 800, 160)
+
+    // Same order as AutoBattle.loop(); a null handler means the agent decides.
+    private val screens = listOf(
+        Screen("connection_retry", { connectionRetry.needsToRetry() }, { connectionRetry.retry() }),
+        Screen("loading", { loadingTexts in loadingRegion }, { }),
+        Screen("battle", { battle.isIdle() }, null),
+        Screen("menu", { images[Images.Menu] in locations.menuScreenRegion }, null),
+        Screen("result_bond", { images[Images.Bond] in locations.resultBondRegion }, ::result),
+        Screen("result", ::isInResult, ::result),
+        Screen("result_drops", { images[Images.MatRewards] in locations.resultMatRewardsRegion }, {
+            locations.resultMatRewardsRegion.click()
+        }),
+        Screen("quest_reward", { images[Images.QuestReward] in locations.resultQuestRewardRegion }, {
+            locations.resultClick.click()
+        }),
+        Screen("support", { isInSupport() }, null),
+        Screen("repeat", { findRepeatButton() != null }, null),
+        Screen("ordeal_out_of_pods", { images[Images.Close] in locations.ordealCallOutOfPodsRegion }, null),
+        Screen("interlude_end", { images[Images.Close] in locations.interludeEndScreenClose }, {
+            locations.interludeCloseClick.click()
+        }),
+        Screen("withdraw", { withdraw.needsToWithdraw() }, null),
+        Screen("story", { locations.menuStorySkipRegion.exists(images[Images.StorySkip], similarity = 0.7) }, ::skipStory),
+        Screen("friend_request", { images[Images.SupportExtra] in locations.resultFriendRequestRegion }, {
+            locations.resultFriendRequestRejectClick.click()
+        }),
+        Screen("bond10_reward", {
+            locations.resultCeRewardRegion.exists(images[Images.Bond10Reward], similarity = 0.75)
+        }, { locations.scriptArea.center.click() }),
+        Screen("ce_reward", { images[Images.CEDetails] in locations.resultCeRewardDetailsRegion }, {
+            locations.resultCeRewardCloseClick.click()
+        }),
+        Screen("death_animation", ::isDeathAnimation, { locations.battle.battleSafeMiddleOfScreenClick.click() }),
+        Screen("rank_up", { images[Images.RankUp] in locations.rankUpRegion }, { locations.middleOfScreenClick.click() }),
+        Screen("between_waves", { isInBattle && locations.npStartedRegion.isBlack() }, {
+            locations.battle.battleSafeMiddleOfScreenClick.click()
+        }),
+        Screen("ap_refill", { images[Images.Stamina] in locations.staminaScreenRegion }, null),
+        Screen("inventory_full", { isInventoryFull() }, null),
+    )
+
+    private fun isInResult() = listOf(
+        images[Images.Result] to locations.resultScreenRegion,
+        images[Images.MasterLevelUp] to locations.resultMasterLvlUpRegion,
+        images[Images.MasterExp] to locations.resultMasterExpRegion
+    ).any { (image, region) -> image in region }
+
+    private fun isDeathAnimation() =
+        isInBattle && FieldSlot.list
+            .map { locations.battle.servantPresentRegion(it) }
+            .count { it.exists(images[Images.ServantExist], similarity = 0.70) } in 1..2
+
+    private fun findRepeatButton() =
+        locations.continueRegion.find(images[Images.Repeat])
+            ?: if (prefs.gameServer is GameServer.Jp)
+                locations.continueRegion.find(images[Images.Repeat, GameServers.default])
+            else null
+
+    private fun result() {
+        isInBattle = false
+        runEnded = true
+        locations.resultClick.click(15)
+    }
+
+    private fun skipStory() {
+        locations.menuStorySkipClick.click()
+        0.5.seconds.wait()
+        locations.menuStorySkipYesClick.click()
+    }
+
+    /** Which screen is up, without acting on it. */
+    fun screen(): String = useSameSnapIn {
+        screens.firstOrNull { it.check() }?.name ?: "unknown"
+    }
+
+    /**
+     * Run FGA's loop, handling the in-between screens, until the agent has something to decide.
+     * Returns the decision screen; "unknown" when nothing matches and the picture has settled.
+     */
+    fun advance(timeoutSeconds: Int): String {
+        val deadline = TimeSource.Monotonic.markNow() + timeoutSeconds.seconds
+        var previous: Pattern? = null
+        var stillFor = 0
+        try {
+            while (deadline.hasNotPassedNow()) {
+                val match = useSameSnapIn { screens.firstOrNull { it.check() } }
+                if (match != null) stillFor = 0
+                when {
+                    // A black screen is a transition, never something to decide on
+                    match == null && locations.scriptArea.isBlack() -> stillFor = 0
+                    match == null -> {
+                        val now = locations.scriptArea.getPattern("settle")
+                        stillFor = if (previous?.findMatches(now, 0.98)?.any() == true) stillFor + 1 else 0
+                        previous?.close()
+                        previous = now
+                        // ~2s without change: a screen that waits for input, not an animation
+                        if (stillFor >= 3) return "unknown"
+                    }
+                    match.handle != null -> match.handle.invoke()
+                    else -> {
+                        if (match.name == "battle") startTurn()
+                        return match.name
+                    }
+                }
+                0.5.seconds.wait()
+            }
+            return "timeout"
+        } finally {
+            previous?.close()
+        }
+    }
+
+    /** Battle.performBattle()'s turn-start steps: wave tracking, turn count, servant tracking. */
+    private fun startTurn() {
+        if (turnStarted) return
+        if (runEnded) {
+            battle.resetState()
+            runEnded = false
+        }
+        isInBattle = true
+        prefs.waitBeforeTurn.wait()
+        useSameSnapIn {
+            stageTracker.checkCurrentStage()
+            state.nextTurn()
+        }
+        servantTracker.beginTurn()
+        turnStarted = true
+    }
+
+    fun battleInfo() = mapOf(
+        "wave" to state.stage + 1,
+        "turn_in_wave" to state.turn + 1,  // FGA counts turns per wave
+        "servants" to servantTracker.deployed.entries.associate { (field, team) -> field.position to team.position }
+    )
+
+    /**
+     * One turn's actions in FGA's skill-command notation, run through FGA's Caster
+     * (same dispatch as AutoSkill.act). NPs and wave/turn separators are not allowed here.
+     */
+    fun act(command: String) {
+        val stages = AutoSkillCommand.parse(command).stages
+        require(stages.size == 1 && stages[0].size == 1) { "one turn at a time: no ',' or '#'" }
+        for (action in stages[0][0]) {
+            when (action) {
+                is AutoSkillAction.Atk -> require(action.nps.isEmpty() && action.cardsBeforeNP == 0) {
+                    "NPs are picked with play, not act"
+                }
+                is AutoSkillAction.ServantSkill -> caster.castServantSkill(action.skill, action.targets)
+                is AutoSkillAction.MasterSkill -> caster.castMasterSkill(action.skill, action.target)
+                is AutoSkillAction.CommandSpell -> caster.castCommandSpell(action.skill, action.target)
+                is AutoSkillAction.TargetEnemy -> caster.selectEnemyTarget(action.enemy)
+                is AutoSkillAction.OrderChange -> caster.orderChange(action)
+            }
+        }
+    }
+
+    /** Battle.clickAttack(): open the cards and parse them with FGA's CardParser. */
+    fun cards(): List<ParsedCard> = battle.clickAttack()
+
+    /** Leave the card screen (AttackScreenLocations.backClick). */
+    fun back() {
+        locations.attack.backClick.click()
+        locations.battle.screenCheckRegion.exists(images[Images.BattleScreen], 5.seconds)
+    }
+
+    /** Card.clickCommandCards() with the agent's picks instead of card priority. */
+    fun play(nps: List<Int>, faces: List<Int>, cardsBeforeNp: Int) {
+        require(nps.size + faces.size in 1..3) { "pick 1 to 3 cards in total" }
+        require(cardsBeforeNp in 0..faces.size) { "cards_before_np is more than the face cards picked" }
+        val face = faces.map { CommandCard.Face.list[it - 1] }
+        face.take(cardsBeforeNp).forEach { caster.use(it) }
+        nps.forEach { caster.use(CommandCard.NP.list[it - 1]) }
+        face.drop(cardsBeforeNp).forEach { caster.use(it) }
+        turnStarted = false
+        0.5.seconds.wait()
+    }
+}

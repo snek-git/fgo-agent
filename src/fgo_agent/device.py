@@ -47,3 +47,10 @@ class Device:
 
     def fgo_running(self) -> bool:
         return bool(self.shell(f"pidof {FGO_PACKAGE} || true").strip())
+
+
+def encode_jpeg(image: np.ndarray, quality: int = 85) -> bytes:
+    ok, buf = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, quality])
+    if not ok:
+        raise RuntimeError("jpeg encode failed")
+    return buf.tobytes()

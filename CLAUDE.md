@@ -1,49 +1,50 @@
 # Playing FGO
 
-When asked to play, use the `fgo` MCP tools. Work in a loop: `look`, decide, act, read the
-state that comes back. Every tool returns a fresh screenshot plus parsed state, so there is
-no need to call `look` after an action.
+When asked to play, use the `fgo` MCP tools. You make every decision; the mechanics of each
+action run in FGA's own code (through the bridge), so you never time taps or guess when the
+game is ready. Every tool returns a screenshot plus state.
 
-## Screen states
+## The loop
 
-`look` reports `screen` as one of: battle_command, card_select, quest_menu (map or quest
-list), support_select, result, result_bond, result_drops, quest_reward, repeat_prompt,
-withdraw_prompt, stamina_refill, story_skippable, black_screen (NP animation or loading),
-unknown. "unknown" only means no template matched (title, menus, tutorial popups); read the
-screenshot and use `tap`. On black_screen or a moving unknown screen, `wait`.
-
-## Story
-
-On story_skippable, call `skip_story`. Do not read or tap through dialogue.
+- `look` tells you which screen FGA sees: battle, menu, support, repeat, ap_refill, withdraw,
+  inventory_full, story, loading, or unknown.
+- After anything that starts animations or loading (starting a quest, a battle turn, closing a
+  popup), call `advance`. It skips story, waits out loading and NP/wave animations, taps
+  through results, bond, drops and rewards, rejects friend requests, and returns when you
+  have a decision: your battle turn, a menu, support select, the repeat prompt, AP refill,
+  or "unknown" (a still screen none of FGA's detectors know: tutorial popups, title cards,
+  dialogs). On "unknown", read the screenshot and `tap`.
+- Outside battle, navigate with `tap`, `swipe`, `back`.
 
 ## Before a quest
 
 1. Read the quest's Japanese name off the screen and call `find_quest(name)`.
-2. On the party screen, note your three frontline servants, the backline, the support,
-   their CEs and your mystic code.
-3. `prepare_battle(quest_id, phase, party, ces, mystic_code)`. It returns every wave's
-   enemies (class, HP, traits, skills, NP, damage multipliers vs each of your servants) and
-   your kits. Plan the NP turns per wave from it. `battle_brief` re-reads it later.
-4. Skills and NPs can have several versions (rank-ups, story unlocks). Match the name in
-   the game's skill dialog against the brief to know which one you have.
+2. On the party screen, note your frontline, backline, support, their CEs and mystic code.
+3. `prepare_battle(quest_id, phase, party, ces, mystic_code)` for every wave's enemies (class,
+   HP, traits, skills, NP, multipliers vs each of your servants) and your kits.
+   `battle_brief` re-reads it later.
+4. Skills and NPs can have several versions (rank-ups, story unlocks). Match the name in the
+   game's skill dialog against the brief to know which one you have.
 5. `lookup_servant`, `lookup_ce`, `lookup_mystic_code`, `lookup_command_code` for anything else.
 
 ## Battle turn
 
-1. On battle_command: use skills with `use_skill(servant, skill, target)` and
-   `use_master_skill`. Pass `target` for skills aimed at one ally. Skip a skill whose icon
-   is greyed out or shows a cooldown number.
-2. `target_enemy(n)` if you want to focus one enemy.
-3. `open_cards` and read `cards` (type, weak/resist, stunned; Empty slots read "unknown").
+1. `act` with FGA's skill notation, e.g. "a", "b1", "d3j", "t2". Servant skills by field slot
+   (a b c / d e f / g h i), ally target digit right after, master skills j k l, enemy target
+   t1-t3 (fixed positions in the top HP-bar row, left to right; empty when a wave has fewer
+   enemies), order change "x" + starting 1-3 + backline 1-3. Skip greyed out skills or ones
+   showing a cooldown number.
+2. `open_cards`: type, weak/resist, stunned, and which party member owns each card.
    NP is ready when the servant's NP gauge reads 100% or more.
-4. `play_cards([...])` with three picks. Brave chain (three cards from one servant) and
-   same-colour chains are worth it. Lead with Arts to charge NP, Buster to hit hard.
-5. The tool waits for the turn to end. On result screens, use `advance_results`.
+3. `play_cards(cards=[...], nps=[...])`: three picks in total. Brave chain (three cards from
+   one servant) and same-colour chains are worth it. Lead with Arts to charge NP, Buster to hit
+   hard. When the hand has Empty slots, pick an Empty slot as the last card. It then advances
+   to your next decision by itself. `close_cards` goes back for more skills.
 
 ## Rules
 
 - Never spend Saint Quartz, golden apples, summon, or buy anything unless told to.
-- On the support screen, pick a friend whose servant suits the quest, then start the quest.
-- If stuck on the same screen after two tries, `wait` a few seconds, then `back`.
+- On support select, pick a friend whose servant suits the quest, then start the quest.
+- Tutorial overlays only accept taps inside the highlighted box; follow them with `tap`.
 - Coordinates for `tap` are the 1280x720 screenshot pixels.
 - Turn on fast battle speed (top right of the card screen) if it is off.

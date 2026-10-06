@@ -9,21 +9,24 @@ A harness that lets an AI agent (Claude Code, through MCP) play Fate/Grand Order
   for Play Services: without it Firebase never starts and FGO's data download dies with a
   duplicate-key error. `su` removed and release-keys build props.
   GPU is the Radeon iGPU (`renderD129`): the image's Mesa 24.0 can't drive the RDNA 4 card.
-- **Vision**: 720p templates and screen coordinates from
-  [FGA](https://github.com/Fate-Grand-Automata/FGA) (MIT, see `src/fgo_agent/assets/FGA-LICENSE`).
-  The container runs at exactly 1280x720 so FGA's numbers map 1:1 (halved).
-- **Agent tools**: `look`, `tap`, `swipe`, `back`, `wait`, `launch_fgo`, `use_skill`,
-  `use_master_skill`, `target_enemy`, `open_cards`, `play_cards`, `close_cards`,
-  `advance_results`. Each returns parsed state plus a screenshot.
+- **Bridge** (`bridge/`, Kotlin): runs [FGA](https://github.com/Fate-Grand-Automata/FGA)'s own
+  `libautomata` and `scripts` modules (git submodule `vendor/FGA`, MIT) on the desktop JVM, with
+  adb screenshots/taps and desktop OpenCV in place of FGA's Android services. The agent decides
+  each turn; FGA's code does the mechanics: its screen detectors, `Caster` (skills, targets,
+  waits), card parsing with face-card servant matching, wave tracking, and the AutoBattle loop's
+  handling of results, drops, bond, story skip and wave transitions. JSON lines over stdio.
+- **MCP server** (`src/fgo_agent`): `look`, `advance`, `act` (FGA skill notation), `open_cards`,
+  `play_cards`, `close_cards`, `tap`, `swipe`, `back`, `wait`, `launch_fgo`.
 - **Game data**: [Atlas Academy](https://api.atlasacademy.io) JP data with English names, cached
-  in `~/.cache/fgo-agent`. `lookup_servant`, `find_quest` (by Japanese quest name),
-  `prepare_battle` (all waves' enemies with class/attribute multipliers vs your party, plus
-  your party's skills and NPs), `battle_brief`.
+  in `~/.cache/fgo-agent`: `lookup_servant`, `lookup_ce`, `lookup_mystic_code`,
+  `lookup_command_code`, `find_quest` (by Japanese quest name), `prepare_battle` (every wave's
+  enemies with class/attribute multipliers vs your party, plus your kits), `battle_brief`.
 
 ## Setup
 
 ```sh
 scripts/setup-emu.sh                    # build image, boot container
+scripts/build-bridge.sh                 # FGA submodule + Kotlin bridge (JDK 21)
 scripts/install-apk.sh ~/Downloads/fgo.xapk
 scrcpy -s 127.0.0.1:5555 --audio-codec=aac   # watch or play by hand (no opus encoder in the image)
 ```
@@ -31,12 +34,12 @@ scrcpy -s 127.0.0.1:5555 --audio-codec=aac   # watch or play by hand (no opus en
 ## Play
 
 Run `claude` in this directory. `.mcp.json` registers the `fgo` server and `CLAUDE.md` is the
-playbook. Then: "launch fgo and clear the daily quest".
+playbook. Then: "continue the Fuyuki story".
 
 ## Debug
 
 ```sh
-uv run fgo-agent observe    # parsed state as JSON
+uv run fgo-agent screen     # FGA's reading of the current screen
 uv run fgo-agent shot a.png # screenshot
-uv run fgo-agent bench      # capture + parse timing (~45 ms)
+uv run fgo-agent bench      # detection timing through the bridge (~42 ms)
 ```
