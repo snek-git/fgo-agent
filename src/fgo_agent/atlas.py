@@ -230,11 +230,18 @@ def _describe_func(func: dict, levels: list[dict], note_oc: list[dict] | None = 
     return " ".join(bits)
 
 
+def _shown(func: dict) -> bool:
+    """Skip hidden bookkeeping functions (no values, or no effect and no visible buff)."""
+    if not func["svals"] or func["funcType"] == "none":
+        return False
+    return not func["buffs"] or bool(func["buffs"][0].get("name")) and func["buffs"][0]["type"] != "none"
+
+
 def describe_skill(sk: dict) -> str:
     cd = sk.get("coolDown") or [0]
     lines = [f"{sk['name']} ({sk['originalName']}) CD {cd[0]}~{cd[-1]}" if len(cd) > 1 else sk["name"]]
     for func in sk["functions"]:
-        if func["svals"]:
+        if _shown(func):
             lines.append("  - " + _describe_func(func, func["svals"]))
     return "\n".join(lines)
 
@@ -244,19 +251,52 @@ def describe_np(np: dict) -> str:
     hits = len(np.get("npDistribution") or [])
     lines = [f"NP {np['name']} ({np['originalName']}) [{cards}, {hits} hits]"]
     for func in np["functions"]:
-        if func["svals"]:
+        if _shown(func):
             lines.append("  - " + _describe_func(func, func["svals"], _series(func, "svals5")))
     return "\n".join(lines)
 
 
-def _latest(items: list[dict], key: str) -> list[dict]:
-    """Newest upgrade per slot (FGO keeps every strengthened version)."""
-    best: dict = {}
+@cache
+def quest_name(quest_id: int) -> str:
+    q = _cached(f"quest_{quest_id}.json", f"{API}/nice/JP/quest/{quest_id}?lang=en")
+    return q["name"].replace("\n", " ")
+
+
+def _unlock(item: dict) -> str:
+    parts = []
+    if item.get("condQuestId"):
+        parts.append(f"after quest '{quest_name(item['condQuestId'])}'")
+    if item.get("condLimitCount"):
+        parts.append(f"ascension {item['condLimitCount']}+")
+    return ", ".join(parts) or "base"
+
+
+def _versions(items: list[dict], key: str) -> dict[int, list[dict]]:
+    """Every version per slot, base first. Which one a player has depends on their story
+    progress, rank-up quests and ascension, so the agent gets all of them."""
+    slots: dict[int, list[dict]] = {}
     for item in items:
-        slot = item.get(key, 0)
-        if slot not in best or (item.get("priority", 0), item["id"]) > (best[slot].get("priority", 0), best[slot]["id"]):
-            best[slot] = item
-    return [best[k] for k in sorted(best)]
+        slots.setdefault(item.get(key, 0), []).append(item)
+    order = lambda i: (bool(i.get("condQuestId")), i.get("condLimitCount", 0), i.get("priority", 0), i["id"])  # noqa: E731
+    return {slot: sorted(group, key=order) for slot, group in sorted(slots.items())}
+
+
+def _describe_versions(items: list[dict], key: str, describe) -> list[str]:
+    lines = []
+    for slot, group in _versions(items, key).items():
+        seen: set[str] = set()
+        texts = []
+        for v in group:
+            text = describe(v)
+            if text not in seen:  # Atlas keeps identical copies under different ids
+                seen.add(text)
+                texts.append(f"[{_unlock(v)}] {text}")
+        if len(texts) == 1:
+            lines.append(texts[0].split("] ", 1)[1])
+            continue
+        lines.append(f"Slot {slot} has {len(texts)} versions, check the in-game name to know which applies:")
+        lines += texts
+    return lines
 
 
 def describe_servant(s: dict) -> str:
@@ -270,16 +310,17 @@ def describe_servant(s: dict) -> str:
         f"Traits: {', '.join(traits[:14])}",
         "Skills:",
     ]
-    lines += ["  " + describe_skill(sk).replace("\n", "\n  ") for sk in _latest(s["skills"], "num")]
+    own = [sk for sk in s["skills"]
+           if not sk.get("skillSvts") or any(x["svtId"] == s["id"] for x in sk["skillSvts"])]
+    lines += ["  " + text.replace("\n", "\n  ") for text in _describe_versions(own, "num", describe_skill)]
     lines.append("Passives: " + "; ".join(p["name"] for p in s["classPassive"]))
     nps = [np for np in s["noblePhantasms"] if np["functions"]]
-    if nps:
-        lines.append(describe_np(_latest(nps, "num")[-1]))
+    lines += _describe_versions(nps, "num", describe_np)
     return "\n".join(lines)
 
 
 def _effects(sk: dict) -> list[str]:
-    return ["  - " + _describe_func(f, f["svals"]) for f in sk["functions"] if f["svals"]]
+    return ["  - " + _describe_func(f, f["svals"]) for f in sk["functions"] if _shown(f)]
 
 
 def describe_craft_essence(ce: dict) -> str:
