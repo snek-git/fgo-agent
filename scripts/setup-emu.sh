@@ -1,14 +1,7 @@
 #!/usr/bin/env bash
-# Build the redroid image (Android 11 + libndk ARM translation, su removed) and start it.
+# Build the redroid image (Android 13 + libndk ARM translation, su removed) and start it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-
-if ! docker image inspect redroid/redroid:11.0.0_ndk >/dev/null 2>&1; then
-  if [ ! -d vendor/redroid-script ]; then
-    git clone --depth 1 https://github.com/ayasa520/redroid-script vendor/redroid-script
-  fi
-  (cd vendor/redroid-script && uv run --with requests --with tqdm python redroid.py -a 11.0.0 -n)
-fi
 
 docker compose -f emu/compose.yaml up -d --build
 

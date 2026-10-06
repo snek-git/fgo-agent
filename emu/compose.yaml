@@ -1,14 +1,14 @@
 services:
   redroid:
     build: .
-    image: fgo-redroid:11
+    image: fgo-redroid:13
     container_name: fgo-redroid
     privileged: true
     restart: unless-stopped
     ports:
       - "127.0.0.1:5555:5555"
     volumes:
-      - redroid-data:/data
+      - redroid13-data:/data
     devices:
       - /dev/dri:/dev/dri
     command:
@@ -17,7 +17,7 @@ services:
       - androidboot.redroid_dpi=240
       - androidboot.redroid_fps=60
       - androidboot.redroid_gpu_mode=host
-      # iGPU (RDNA 2). The image's Mesa 24.0 cannot drive the RDNA 4 dGPU on renderD128.
+      # iGPU (RDNA 2). The image's Mesa cannot drive the RDNA 4 dGPU on renderD128.
       - androidboot.redroid_gpu_node=/dev/dri/renderD129
       - androidboot.use_memfd=1
       - ro.product.cpu.abilist=x86_64,arm64-v8a,x86,armeabi-v7a,armeabi
@@ -29,7 +29,6 @@ services:
       - ro.vendor.enable.native.bridge.exec=1
       - ro.vendor.enable.native.bridge.exec64=1
       - ro.dalvik.vm.native.bridge=libndk_translation.so
-      - ro.ndk_translation.version=0.2.3
 
 volumes:
-  redroid-data:
+  redroid13-data:
