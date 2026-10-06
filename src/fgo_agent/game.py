@@ -42,7 +42,7 @@ class Game:
             ("repeat_prompt", lambda: exists(g, "repeat.png", L.REPEAT_CHECK)),
             ("withdraw_prompt", lambda: exists(g, "withdraw.png", L.WITHDRAW_CHECK)),
             ("stamina_refill", lambda: exists(g, "stamina.png", L.STAMINA_CHECK)),
-            ("story_skippable", lambda: exists(g, "storyskip.png", L.STORY_SKIP_CHECK)),
+            ("story_skippable", lambda: exists(g, "storyskip.png", L.STORY_SKIP_CHECK, similarity=0.7)),
             ("black_screen", lambda: is_black(g, L.NP_STARTED)),  # NP animation or loading
         )
         for name, check in checks:
@@ -143,6 +143,17 @@ class Game:
             time.sleep(0.35)
         # FGO fires once three cards are chosen. Wait for the turn to resolve.
         return self.wait_for({"battle_command", "result", "result_bond", "quest_reward"}, timeout=90, poll=1.0)
+
+    def skip_story(self) -> bool:
+        """Tap SKIP and confirm, like FGA. False if no skip button is showing."""
+        _, g = self.capture()
+        if not exists(g, "storyskip.png", L.STORY_SKIP_CHECK, similarity=0.7):
+            return False
+        self.device.tap(*L.STORY_SKIP)
+        time.sleep(0.5)
+        self.device.tap(*L.STORY_SKIP_YES)
+        time.sleep(1.5)
+        return True
 
     def advance_results(self, max_taps: int = 25) -> str:
         """Tap through result / bond / exp / drop screens. Only starts from a detected result

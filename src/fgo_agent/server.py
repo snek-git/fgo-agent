@@ -141,6 +141,17 @@ def advance_results() -> list:
     return _view(f"stopped on: {game().advance_results()}")
 
 
+@mcp.tool()
+def skip_story() -> list:
+    """Skip the current story scene (SKIP button top right, then confirm). If no skip button
+    is showing, taps once to advance the dialogue instead."""
+    if game().skip_story():
+        return _view("skipped story")
+    game().device.tap(*L.MIDDLE)
+    time.sleep(0.8)
+    return _view("no skip button, advanced dialogue")
+
+
 def _lookup(kind: str, matches: list[dict], describe, query: str) -> str:
     if not matches:
         return f"no {kind} matches {query!r}"
