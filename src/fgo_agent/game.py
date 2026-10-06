@@ -14,6 +14,8 @@ from .device import Device
 from .vision import exists, find, gray, is_black
 
 CARD_TYPES = (("buster.png", "buster"), ("art.png", "arts"), ("quick.png", "quick"))
+# Screens that mean a played turn has finished resolving.
+TURN_OVER = {"battle_command", "result", "result_bond", "quest_reward", "story_skippable"}
 STUN_IMAGES = ("stun.png", "immobilized.png", "stun_buster.png", "stun_arts.png", "stun_quick.png")
 
 
@@ -142,7 +144,7 @@ class Game:
                 self.device.tap(*L.card(int(pick)))
             time.sleep(0.35)
         # FGO fires once three cards are chosen. Wait for the turn to resolve.
-        return self.wait_for({"battle_command", "result", "result_bond", "quest_reward"}, timeout=90, poll=1.0)
+        return self.wait_for(TURN_OVER, timeout=90, poll=1.0)
 
     def skip_story(self) -> bool:
         """Tap SKIP and confirm, like FGA. False if no skip button is showing."""
