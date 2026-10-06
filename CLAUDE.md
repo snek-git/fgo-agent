@@ -8,7 +8,7 @@ no need to call `look` after an action.
 
 `look` reports `screen` as one of: battle_command, card_select, quest_menu, support_select,
 result, result_bond, quest_reward, repeat_prompt, withdraw_prompt, stamina_refill,
-story_skippable, np_animation, unknown. "unknown" only means no template matched (title
+story_skippable, black_screen (NP animation or loading), unknown. "unknown" only means no template matched (title
 screen, story, menus, home); read the screenshot and use `tap`.
 
 ## Battle turn

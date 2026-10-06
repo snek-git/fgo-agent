@@ -43,7 +43,7 @@ class Game:
             ("withdraw_prompt", lambda: exists(g, "withdraw.png", L.WITHDRAW_CHECK)),
             ("stamina_refill", lambda: exists(g, "stamina.png", L.STAMINA_CHECK)),
             ("story_skippable", lambda: exists(g, "storyskip.png", L.STORY_SKIP_CHECK)),
-            ("np_animation", lambda: is_black(g, L.NP_STARTED)),
+            ("black_screen", lambda: is_black(g, L.NP_STARTED)),  # NP animation or loading
         )
         for name, check in checks:
             if check():
@@ -145,12 +145,16 @@ class Game:
         return self.wait_for({"battle_command", "result", "result_bond", "quest_reward"}, timeout=90, poll=1.0)
 
     def advance_results(self, max_taps: int = 25) -> str:
-        """Tap through result / bond / exp / drop screens."""
-        current = "unknown"
+        """Tap through result / bond / exp / drop screens. Only starts from a detected result
+        screen, so it never taps blind on menus that might spend something."""
+        _, g = self.capture()
+        current = self.screen(g)
+        if current not in {"result", "result_bond", "quest_reward"}:
+            return current
         for _ in range(max_taps):
             _, g = self.capture()
             current = self.screen(g)
-            if current not in {"result", "result_bond", "unknown", "np_animation"}:
+            if current not in {"result", "result_bond", "quest_reward", "unknown", "black_screen"}:
                 return current
             self.device.tap(*L.RESULT_CLICK)
             time.sleep(0.6)
