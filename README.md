@@ -25,7 +25,7 @@ A harness that lets an AI agent (Claude Code, through MCP) play Fate/Grand Order
 ```sh
 scripts/setup-emu.sh                    # build image, boot container
 scripts/install-apk.sh ~/Downloads/fgo.xapk
-scrcpy -s 127.0.0.1:5555                # watch or play by hand
+scrcpy -s 127.0.0.1:5555 --audio-codec=aac   # watch or play by hand (no opus encoder in the image)
 ```
 
 ## Play
