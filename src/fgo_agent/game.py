@@ -53,10 +53,7 @@ class Game:
         return "unknown"
 
     def _card_screen(self, g: np.ndarray) -> bool:
-        found = sum(
-            any(exists(g, image, L.card_type_region(n)) for image, _ in CARD_TYPES) for n in (1, 2, 3, 4, 5)
-        )
-        return found >= 3
+        return exists(g, "card_back.png", L.CARD_SCREEN_CHECK)
 
     def cards(self, g: np.ndarray) -> list[dict]:
         result = []
@@ -111,24 +108,36 @@ class Game:
             self.device.tap(*L.SKILL_OK)
             time.sleep(0.5)
 
-    def use_skill(self, servant: int, slot: int, target: int | None = None) -> str:
-        self.device.tap(*L.skill(servant, slot))
-        self._confirm_skill()
-        if target is not None:
-            self.device.tap(*L.servant_target(target))
+    def _pick_target(self, target: int | None, on_field: list[int]) -> None:
+        if target is None:
+            return
+        if target not in on_field:
+            raise ValueError(f"servant {target} is not on the field ({on_field})")
+        time.sleep(0.4)
+        self.device.tap(*L.servant_target(target, on_field))
+
+    def _after_skill(self) -> str:
+        time.sleep(1.5)  # skill animation; the command screen stays matched underneath it
         return self.wait_for({"battle_command"}, timeout=15)
 
+    def use_skill(self, servant: int, slot: int, target: int | None = None) -> str:
+        on_field = self.servants_present(self.capture()[1])
+        self.device.tap(*L.skill(servant, slot))
+        self._confirm_skill()
+        self._pick_target(target, on_field)
+        return self._after_skill()
+
     def use_master_skill(self, skill_no: int, target: int | None = None) -> str:
+        _, g = self.capture()
+        on_field = self.servants_present(g)
         if self.master_menu_x is None:
-            _, g = self.capture()
             self._locate_master_menu(g)
         self.device.tap(*L.master_open(self.master_menu_x))
         time.sleep(0.6)
         self.device.tap(*L.master_skill(skill_no, self.master_menu_x))
         self._confirm_skill()
-        if target is not None:
-            self.device.tap(*L.servant_target(target))
-        return self.wait_for({"battle_command"}, timeout=15)
+        self._pick_target(target, on_field)
+        return self._after_skill()
 
     def target_enemy(self, enemy: int) -> None:
         self.device.tap(*L.enemy_target(enemy))

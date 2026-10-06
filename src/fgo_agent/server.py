@@ -119,11 +119,12 @@ def open_cards() -> list:
 
 @mcp.tool()
 def play_cards(cards: list[str]) -> list:
-    """Battle: on the open card screen, play three picks in order, e.g. ["np1", "3", "5"].
+    """Battle: on the open card screen, play picks in order, e.g. ["np1", "3", "5"].
     Face cards are "1".."5" left to right, noble phantasms "np1".."np3" by servant.
+    Normally three picks; fewer only when the hand has fewer playable cards.
     Waits until the turn resolves (up to 90s)."""
-    if len(cards) != 3:
-        raise ValueError("pick exactly 3 cards")
+    if not 1 <= len(cards) <= 3:
+        raise ValueError("pick 1 to 3 cards")
     return _view(f"screen after attack: {game().play_cards(cards)}")
 
 

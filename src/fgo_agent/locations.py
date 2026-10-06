@@ -33,8 +33,11 @@ def skill(servant: int, slot: int) -> tuple[int, int]:
     return at(SKILL_X[(servant - 1) * 3 + (slot - 1)], SKILL_Y)
 
 
-def servant_target(servant: int) -> tuple[int, int]:
-    return at(CX + (-580, 0, 660)[servant - 1], 880)
+def servant_target(servant: int, on_field: list[int]) -> tuple[int, int]:
+    """Ally target picker. The game lays it out by how many servants are on the field:
+    one sits in the center, two split left/right, three use the A/B/C spots."""
+    layout = {1: (0,), 2: (-290, 330), 3: (-580, 0, 660)}[len(on_field)]
+    return at(CX + layout[on_field.index(servant)], 880)
 
 
 def enemy_target(enemy: int) -> tuple[int, int]:
@@ -64,6 +67,7 @@ def master_open(menu_x_script: int) -> tuple[int, int]:
 CARD_X = (-980, -530, 20, 520, 1070)
 NP_CLICK = ((-280, 220), (20, 400), (460, 400))
 CARD_BACK = at(W - 160, 1370)
+CARD_SCREEN_CHECK = area(W - 360, 1280, 360, 160)  # card_back.png, the 戻る button (cut from JP)
 
 
 def card(n: int) -> tuple[int, int]:
