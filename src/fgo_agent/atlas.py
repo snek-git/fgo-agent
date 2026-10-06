@@ -6,6 +6,7 @@ the class tables come from the API and are cached per id.
 
 import difflib
 import json
+import re
 import time
 import urllib.parse
 import urllib.request
@@ -63,6 +64,21 @@ def servants() -> list[dict]:
 
 
 @cache
+def craft_essences() -> list[dict]:
+    return _cached("nice_equip_lang_en.json", f"{API}/export/JP/nice_equip_lang_en.json", EXPORT_MAX_AGE)
+
+
+@cache
+def mystic_codes() -> list[dict]:
+    return _cached("nice_mystic_code_lang_en.json", f"{API}/export/JP/nice_mystic_code_lang_en.json", EXPORT_MAX_AGE)
+
+
+@cache
+def command_codes() -> list[dict]:
+    return _cached("nice_command_code_lang_en.json", f"{API}/export/JP/nice_command_code_lang_en.json", EXPORT_MAX_AGE)
+
+
+@cache
 def class_relation() -> dict:
     return _cached("NiceClassRelation.json", f"{API}/export/JP/NiceClassRelation.json", EXPORT_MAX_AGE)
 
@@ -90,24 +106,44 @@ def search_quests(name: str) -> list[dict]:
     return json.loads(_get(url))
 
 
-# --- finding servants ---
+# --- finding things by name ---
 
-def find_servants(query: str, limit: int = 5) -> list[dict]:
-    """Match by collection number, English name, Japanese name, or fuzzy English name."""
+def find(pool: list[dict], query: str, limit: int = 5) -> list[dict]:
+    """Match by collection number (or id), English name, Japanese name, or fuzzy English name."""
     q = query.strip()
-    pool = [s for s in servants() if s["collectionNo"] > 0]
     if q.isdigit():
-        return [s for s in pool if s["collectionNo"] == int(q)][:limit]
+        n = int(q)
+        return [x for x in pool if x.get("collectionNo", x["id"]) == n or x["id"] == n][:limit]
     folded = q.casefold()
-    exact = [s for s in pool if folded in (s["name"].casefold(), s["originalName"], s["battleName"].casefold())]
+
+    def names(x: dict) -> list[str]:
+        return [x["name"], x["originalName"], x.get("battleName", ""), x.get("originalBattleName", ""),
+                x.get("shortName", "")]
+
+    exact = [x for x in pool if any(folded == n.casefold() for n in names(x) if n)]
     if exact:
         return exact[:limit]
-    partial = [s for s in pool if folded in s["name"].casefold() or q in s["originalName"]
-               or folded in s["battleName"].casefold() or q in s["originalBattleName"]]
+    partial = [x for x in pool if any(folded in n.casefold() for n in names(x) if n)]
     if partial:
         return partial[:limit]
-    names = {s["name"]: s for s in pool}
-    return [names[n] for n in difflib.get_close_matches(q, list(names), n=limit, cutoff=0.5)]
+    by_name = {x["name"]: x for x in pool}
+    return [by_name[n] for n in difflib.get_close_matches(q, list(by_name), n=limit, cutoff=0.5)]
+
+
+def find_servants(query: str, limit: int = 5) -> list[dict]:
+    return find([s for s in servants() if s["collectionNo"] > 0], query, limit)
+
+
+def find_craft_essences(query: str, limit: int = 5) -> list[dict]:
+    return find([c for c in craft_essences() if c["collectionNo"] > 0], query, limit)
+
+
+def find_mystic_codes(query: str, limit: int = 5) -> list[dict]:
+    return find(mystic_codes(), query, limit)
+
+
+def find_command_codes(query: str, limit: int = 5) -> list[dict]:
+    return find(command_codes(), query, limit)
 
 
 # --- describing effects ---
@@ -149,7 +185,7 @@ def _label(func: dict) -> str:
         buff = func["buffs"][0]
         label = buff["name"]
         against = [t["name"] for t in buff.get("ckOpIndv", []) if t["name"] not in NOISE_TRAITS]
-        if against:
+        if against and " vs" not in label:
             label += f" vs {'/'.join(against)}"
         return label
     names = {
@@ -157,6 +193,7 @@ def _label(func: dict) -> str:
         "gainHpPer": "Heal", "subState": "Remove effects", "instantDeath": "Instant death",
         "shortenSkill": "Reduce skill cooldowns by", "delayNpturn": "Drain enemy charge by",
         "hastenNpturn": "Raise charge by", "gainNpFromTargets": "Absorb NP",
+        "lossHp": "Lose HP", "lossHpSafe": "Lose HP (non-lethal)", "lossStar": "Lose stars",
         "cardReset": "Shuffle cards", "transformServant": "Transform", "replaceMember": "Order change",
     }
     if kind.startswith("damageNp"):
@@ -172,7 +209,11 @@ def _describe_func(func: dict, levels: list[dict], note_oc: list[dict] | None = 
     """One effect line. `levels` holds the svals per skill/NP level; `note_oc` the OC500 svals."""
     first, last = levels[0], levels[-1]
     a, b = _value(func, first), _value(func, last)
-    value = a if a == b else f"{a}~{b}"
+    value = a
+    if a != b:
+        ma, mb = re.match(r"^([\d.]+)(.*)$", a), re.match(r"^([\d.]+)(.*)$", b)
+        same_unit = ma and mb and ma.group(2) == mb.group(2)
+        value = f"{ma.group(1)}~{mb.group(1)}{ma.group(2)}" if same_unit else f"{a}~{b}"
     if note_oc and _value(func, note_oc[0]) != a:
         value += f" (OC500: {_value(func, note_oc[0])})"
     target = TARGET.get(func["funcTargetType"], func["funcTargetType"])
@@ -237,6 +278,34 @@ def describe_servant(s: dict) -> str:
     return "\n".join(lines)
 
 
+def _effects(sk: dict) -> list[str]:
+    return ["  - " + _describe_func(f, f["svals"]) for f in sk["functions"] if f["svals"]]
+
+
+def describe_craft_essence(ce: dict) -> str:
+    lines = [f"CE #{ce['collectionNo']} {ce['name']} ({ce['originalName']}), {ce['rarity']}*, "
+             f"ATK {ce['atkMax']} HP {ce['hpMax']}"]
+    by_limit = sorted(ce["skills"], key=lambda s: (s.get("condLimitCount", 0), s.get("priority", 0)))
+    for sk in by_limit:
+        label = "MLB" if sk.get("condLimitCount", 0) >= 4 else "Base"
+        lines.append(f"{label}:")
+        lines += _effects(sk)
+    return "\n".join(lines)
+
+
+def describe_mystic_code(mc: dict) -> str:
+    lines = [f"Mystic Code {mc['name']} ({mc['originalName']}), skills at lv1~lv{mc.get('maxLv', 10)}:"]
+    lines += ["  " + describe_skill(sk).replace("\n", "\n  ") for sk in mc["skills"]]
+    return "\n".join(lines)
+
+
+def describe_command_code(cc: dict) -> str:
+    lines = [f"Command Code #{cc['collectionNo']} {cc['name']} ({cc['originalName']}), {cc['rarity']}*"]
+    for sk in cc["skills"]:
+        lines += _effects(sk)
+    return "\n".join(lines)
+
+
 # --- battle brief ---
 
 def _multiplier(table: dict, attacker: str, defender: str) -> float:
@@ -272,7 +341,8 @@ def describe_enemy(enemy: dict, party: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def battle_brief(quest_id: int, phase: int, party: list[dict]) -> str:
+def battle_brief(quest_id: int, phase: int, party: list[dict], ces: list[dict | None] | None = None,
+                 mystic_code: dict | None = None) -> str:
     q = quest_phase(quest_id, phase)
     name = q["name"].replace("\n", " ")
     lines = [f"Quest {name} ({q['originalName']}) id {quest_id} phase {phase}, "
@@ -288,6 +358,11 @@ def battle_brief(quest_id: int, phase: int, party: list[dict]) -> str:
                 lines.append(f"  (reserve) {enemy['name']} {enemy['svt']['className']} HP {enemy['hp']:,}")
     if party:
         lines.append("Party:")
-        for s in party:
+        for i, s in enumerate(party):
             lines.append(describe_servant(s))
+            ce = ces[i] if ces and i < len(ces) else None
+            if ce:
+                lines.append("Equipped " + describe_craft_essence(ce))
+    if mystic_code:
+        lines.append(describe_mystic_code(mystic_code))
     return "\n".join(lines)

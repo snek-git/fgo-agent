@@ -141,19 +141,41 @@ def advance_results() -> list:
     return _view(f"stopped on: {game().advance_results()}")
 
 
+def _lookup(kind: str, matches: list[dict], describe, query: str) -> str:
+    if not matches:
+        return f"no {kind} matches {query!r}"
+    text = describe(matches[0])
+    if len(matches) > 1:
+        others = ", ".join(f"#{m.get('collectionNo', m['id'])} {m['name']}" for m in matches[1:])
+        text += f"\n\nOther matches: {others}"
+    return text
+
+
 @mcp.tool()
 def lookup_servant(query: str) -> str:
     """Servant data from Atlas Academy (JP, English names): deck, NP gain, skills with
     level 1~10 values and cooldowns, passives, NP effects. Query by English name, Japanese
     name, or collection number."""
-    matches = atlas.find_servants(query)
-    if not matches:
-        return f"no servant matches {query!r}"
-    text = atlas.describe_servant(matches[0])
-    if len(matches) > 1:
-        others = ", ".join(f"#{s['collectionNo']} {s['name']} ({s['className']})" for s in matches[1:])
-        text += f"\n\nOther matches: {others}"
-    return text
+    return _lookup("servant", atlas.find_servants(query), atlas.describe_servant, query)
+
+
+@mcp.tool()
+def lookup_ce(query: str) -> str:
+    """Craft Essence effects, base and max limit break (MLB), plus ATK/HP.
+    Query by English name, Japanese name, or collection number."""
+    return _lookup("craft essence", atlas.find_craft_essences(query), atlas.describe_craft_essence, query)
+
+
+@mcp.tool()
+def lookup_mystic_code(query: str) -> str:
+    """Mystic Code skills with level 1~10 values and cooldowns. Query by name."""
+    return _lookup("mystic code", atlas.find_mystic_codes(query), atlas.describe_mystic_code, query)
+
+
+@mcp.tool()
+def lookup_command_code(query: str) -> str:
+    """Command Code effects. Query by English name, Japanese name, or collection number."""
+    return _lookup("command code", atlas.find_command_codes(query), atlas.describe_command_code, query)
 
 
 @mcp.tool()
@@ -173,17 +195,32 @@ def find_quest(name: str) -> str:
 
 
 @mcp.tool()
-def prepare_battle(quest_id: int, phase: int, party: list[str]) -> str:
+def prepare_battle(
+    quest_id: int, phase: int, party: list[str], ces: list[str] | None = None, mystic_code: str | None = None
+) -> str:
     """Load the battle brief: every wave's enemies (class, HP, traits, skills, NP, damage
     multipliers against your party) plus your party's full kits. `party` holds servant names
-    or collection numbers, frontline first, support servant included. Kept for `battle_brief`."""
+    or collection numbers, frontline first, support servant included. `ces` lines up with
+    `party` (use "" for no CE). Kept for `battle_brief`."""
     global _brief
     members = []
     unknown = []
     for name in party:
         found = atlas.find_servants(name, limit=1)
         (members if found else unknown).append(found[0] if found else name)
-    _brief = atlas.battle_brief(quest_id, phase, members)
+    equipped = []
+    for name in ces or []:
+        found = atlas.find_craft_essences(name, limit=1) if name else []
+        equipped.append(found[0] if found else None)
+        if name and not found:
+            unknown.append(name)
+    mc = None
+    if mystic_code:
+        found = atlas.find_mystic_codes(mystic_code, limit=1)
+        mc = found[0] if found else None
+        if not found:
+            unknown.append(mystic_code)
+    _brief = atlas.battle_brief(quest_id, phase, members, equipped, mc)
     if unknown:
         _brief += f"\n\nNot found: {', '.join(unknown)}"
     return _brief
