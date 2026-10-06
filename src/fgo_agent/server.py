@@ -5,6 +5,7 @@ import time
 
 from mcp.server.mcpserver import Image, MCPServer
 
+from . import atlas
 from . import locations as L
 from .game import Game, encode_jpeg
 
@@ -14,10 +15,14 @@ every x,y in these tools uses those pixels, so read positions straight off the s
 Start with `look`. In battle prefer the battle tools over raw taps: they know where skills,
 targets and cards are. Use raw `tap` for menus, story and anything else.
 Servants, skill slots, enemies and cards are numbered left to right from 1.
+Before starting a quest, read its Japanese name off the screen, call `find_quest`, then
+`prepare_battle` with the quest id and your party so you know every wave's enemies and your
+own kit. `lookup_servant` gives any servant's skills, NP and deck.
 Never spend Saint Quartz, buy anything, or summon unless the user told you to."""
 
 mcp = MCPServer("fgo", instructions=INSTRUCTIONS)
 _game: Game | None = None
+_brief: str | None = None
 
 
 def game() -> Game:
@@ -31,6 +36,8 @@ def _view(note: str | None = None) -> list:
     state, image = game().observe()
     if note:
         state["note"] = note
+    if _brief and state["screen"] in ("battle_command", "card_select"):
+        state["brief"] = "battle brief loaded, call battle_brief to re-read it"
     return [json.dumps(state), Image(data=encode_jpeg(image), format="jpeg")]
 
 
@@ -132,6 +139,60 @@ def close_cards() -> list:
 def advance_results() -> list:
     """After a quest: tap through bond, exp and drop screens until something else shows."""
     return _view(f"stopped on: {game().advance_results()}")
+
+
+@mcp.tool()
+def lookup_servant(query: str) -> str:
+    """Servant data from Atlas Academy (JP, English names): deck, NP gain, skills with
+    level 1~10 values and cooldowns, passives, NP effects. Query by English name, Japanese
+    name, or collection number."""
+    matches = atlas.find_servants(query)
+    if not matches:
+        return f"no servant matches {query!r}"
+    text = atlas.describe_servant(matches[0])
+    if len(matches) > 1:
+        others = ", ".join(f"#{s['collectionNo']} {s['name']} ({s['className']})" for s in matches[1:])
+        text += f"\n\nOther matches: {others}"
+    return text
+
+
+@mcp.tool()
+def find_quest(name: str) -> str:
+    """Find quests by their Japanese name as shown in game (partial names work).
+    Returns ids and phases to pass to `prepare_battle`."""
+    rows = atlas.search_quests(name)
+    if not rows:
+        return f"no quest matches {name!r}"
+    quests: dict[int, dict] = {}
+    for r in rows:
+        quests.setdefault(r["id"], {**r, "phases": []})["phases"].append(r["phase"])
+    return "\n".join(
+        f"id {q['id']} phases {q['phases']}: {q['name'].replace(chr(10), ' ')} | {q.get('spotName', '')} | AP {q.get('consume', '?')}"
+        for q in list(quests.values())[:25]
+    )
+
+
+@mcp.tool()
+def prepare_battle(quest_id: int, phase: int, party: list[str]) -> str:
+    """Load the battle brief: every wave's enemies (class, HP, traits, skills, NP, damage
+    multipliers against your party) plus your party's full kits. `party` holds servant names
+    or collection numbers, frontline first, support servant included. Kept for `battle_brief`."""
+    global _brief
+    members = []
+    unknown = []
+    for name in party:
+        found = atlas.find_servants(name, limit=1)
+        (members if found else unknown).append(found[0] if found else name)
+    _brief = atlas.battle_brief(quest_id, phase, members)
+    if unknown:
+        _brief += f"\n\nNot found: {', '.join(unknown)}"
+    return _brief
+
+
+@mcp.tool()
+def battle_brief() -> str:
+    """Re-read the brief stored by the last `prepare_battle`."""
+    return _brief or "no brief loaded, call prepare_battle first"
 
 
 def run() -> None:

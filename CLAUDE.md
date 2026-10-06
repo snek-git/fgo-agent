@@ -11,6 +11,15 @@ result, result_bond, quest_reward, repeat_prompt, withdraw_prompt, stamina_refil
 story_skippable, black_screen (NP animation or loading), unknown. "unknown" only means no template matched (title
 screen, story, menus, home); read the screenshot and use `tap`.
 
+## Before a quest
+
+1. Read the quest's Japanese name off the screen and call `find_quest(name)`.
+2. On the party screen, note your three frontline servants, the backline, and the support.
+3. `prepare_battle(quest_id, phase, party)`. It returns every wave's enemies (class, HP,
+   traits, skills, NP, damage multipliers vs each of your servants) and your servants' kits.
+   Plan the NP turns per wave from it. `battle_brief` re-reads it later.
+4. `lookup_servant(name)` for any servant you are unsure about, ally or enemy.
+
 ## Battle turn
 
 1. On battle_command: use skills with `use_skill(servant, skill, target)` and
