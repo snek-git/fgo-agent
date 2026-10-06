@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+vendor/
+emu/build.log
+build-image.log
+*.png
+!src/fgo_agent/assets/**/*.png
