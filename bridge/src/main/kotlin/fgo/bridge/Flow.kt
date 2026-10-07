@@ -143,6 +143,10 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
         var previous: Pattern? = null
         var stillFor = 0
         var unmatchedSince = TimeSource.Monotonic.markNow()
+        // Same handled screen over and over means the handler's tap isn't landing (a tutorial
+        // overlay, an unexpected dialog). FGA would loop forever; hand it to the agent instead.
+        var lastHandled: String? = null
+        var handledInARow = 0
         try {
             while (deadline.hasNotPassedNow()) {
                 val match = useSameSnapIn { screens.firstOrNull { it.check() } }
@@ -170,7 +174,14 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
                         val idleTooLong = !isInBattle && unmatchedSince.elapsedNow() > 8.seconds
                         if (settled || idleTooLong) return "unknown"
                     }
-                    match.handle != null -> match.handle.invoke()
+                    match.handle != null -> {
+                        if (match.name != "loading") {
+                            handledInARow = if (match.name == lastHandled) handledInARow + 1 else 1
+                            lastHandled = match.name
+                            if (handledInARow > 8) return match.name
+                        }
+                        match.handle.invoke()
+                    }
                     else -> {
                         when (match.name) {
                             "battle" -> startTurn()
