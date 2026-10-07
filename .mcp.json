@@ -2,7 +2,7 @@
   "mcpServers": {
     "fgo": {
       "command": "uv",
-      "args": ["run", "--project", "/home/snek/dev/games/fgo-agent", "fgo-agent", "serve"]
+      "args": ["run", "--project", ".", "fgo-agent", "serve"]
     }
   }
 }
