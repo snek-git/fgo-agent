@@ -482,10 +482,14 @@ def plan_battle(request: str) -> str:
     if state["screen"] == "battle":
         state["battle"] = bridge().call("battle")["battle"]
     prompt = PLANNER_PROMPT.format(request=request, state=json.dumps(state), goal=memory.goal() or "none")
-    result = subprocess.run(
-        ["claude", "-p", prompt, "--tools", "", "--mcp-config", str(PROJECT / "planner.mcp.json"),
-         "--strict-mcp-config", "--allowedTools", "mcp__fgo-plan__*", "--output-format", "json"],
-        capture_output=True, text=True, timeout=600, cwd=PROJECT)
+    try:
+        result = subprocess.run(
+            ["claude", "-p", prompt, "--tools", "", "--mcp-config", str(PROJECT / "planner.mcp.json"),
+             "--strict-mcp-config", "--allowedTools", "mcp__fgo-plan__*", "--output-format", "json"],
+            capture_output=True, text=True, timeout=1200, cwd=PROJECT)
+    except subprocess.TimeoutExpired:
+        return ("planner ran out of time (20 min) and its work is lost. Ask a narrower question: one "
+                "bar or one decision at a time, with the facts it needs in the request.")
     try:
         out = json.loads(result.stdout)
     except json.JSONDecodeError:
