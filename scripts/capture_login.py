@@ -19,6 +19,6 @@ def response(flow: http.HTTPFlow) -> None:
     print(f"fgo {flow.request.method} {host}{flow.request.path.split('?')[0]} -> {flow.response.status_code}")
     if "/login/top" in flow.request.path:
         OUT.mkdir(parents=True, exist_ok=True)
-        path = OUT / f"login-top-{time.strftime('%Y%m%d-%H%M%S')}.bin"
+        path = OUT / f"login-top-{time.strftime('%Y%m%d-%H%M%S')}.json"
         path.write_bytes(flow.response.content or b"")
         print(f"saved login response ({len(flow.response.content or b'')} bytes) to {path}")

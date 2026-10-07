@@ -21,7 +21,7 @@ hash=$(openssl x509 -inform PEM -subject_hash_old -noout -in "$ca")
 docker cp "$ca" "fgo-redroid:/system/etc/security/cacerts/$hash.0"
 docker exec fgo-redroid chmod 644 "/system/etc/security/cacerts/$hash.0"
 
-before=$(ls data/capture/login-top-*.bin 2>/dev/null | wc -l)
+before=$(ls data/capture/login-top-*.json 2>/dev/null | wc -l)
 mitmdump --listen-host 127.0.0.1 --listen-port "$port" --allow-hosts 'fate-go' \
   -s scripts/capture_login.py > "$log" 2>&1 &
 proxy=$!
@@ -41,8 +41,8 @@ sleep 4
 # Tap through the title screen until the login call has been saved
 for _ in $(seq 1 40); do
   sleep 4
-  if [ "$(ls data/capture/login-top-*.bin 2>/dev/null | wc -l)" -gt "$before" ]; then
-    echo "captured: $(ls data/capture/login-top-*.bin | tail -1)"
+  if [ "$(ls data/capture/login-top-*.json 2>/dev/null | wc -l)" -gt "$before" ]; then
+    echo "captured: $(ls data/capture/login-top-*.json | tail -1)"
     cleanup
     trap - EXIT
     uv run fgo-agent import-account

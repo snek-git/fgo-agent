@@ -15,7 +15,7 @@ CAPTURES = memory.DATA / "capture"
 
 
 def latest_capture() -> Path:
-    files = sorted(CAPTURES.glob("login-top-*.bin"))
+    files = sorted(CAPTURES.glob("login-top-*.json"))
     if not files:
         raise FileNotFoundError("no capture yet: run scripts/capture-account.sh")
     return files[-1]
