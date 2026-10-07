@@ -67,7 +67,7 @@ def set_goal(text: str) -> None:
 
 # --- roster ---
 
-FIELDS = ("level", "np", "skills", "appends", "ascension", "bond", "grand", "ce", "note")
+FIELDS = ("level", "np", "skills", "appends", "ascension", "bond", "grand", "ce", "fou", "np_version", "note")
 
 
 def _load() -> dict:
@@ -116,6 +116,10 @@ def format_entry(e: dict) -> str:
         parts.append("GRAND")
     if e.get("ce"):
         parts.append(f"CE {e['ce']}")
+    if "fou" in e:
+        parts.append(f"Fou +{e['fou']}")
+    if e.get("np_version"):
+        parts.append(f"NP version {e['np_version']}")
     if e.get("note"):
         parts.append(f"({e['note']})")
     return " ".join(parts)
@@ -176,6 +180,11 @@ def _format_ce(e: dict) -> str:
     if e.get("note"):
         parts.append(f"({e['note']})")
     return " ".join(parts)
+
+
+def owned_ce(collection_no: int) -> dict | None:
+    ces = json.loads(CES.read_text()) if CES.exists() else {}
+    return ces.get(str(collection_no))
 
 
 def list_ces(query: str | None = None) -> str:

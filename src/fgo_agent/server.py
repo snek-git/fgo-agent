@@ -308,15 +308,19 @@ def estimate_np_damage(
     def_down: float = 0,
     power_up: float = 0,
     special: bool = False,
-    extra_atk: int = 1000,
+    atk_down: float = 0,
+    extra_atk: int | None = None,
+    ratio: float = 1.0,
     enemy_hp: int | None = None,
 ) -> str:
     """Estimate one NP's damage before spending resources: is this NP alone enough for the bar?
     Buffs are percentages summed from everything active (30 = +30%): atk_up (ATK up), card_up
     (Buster/Arts/Quick up for the NP's card type), np_up (NP damage up), def_down (enemy DEF
-    down), power_up (trait-specific damage up). special=True when the NP's special damage
-    applies to this enemy. extra_atk is Fou + CE ATK (default 1000 Fou, add the CE's ATK).
-    Level and NP level default to the roster entry (else max level, NP1). enemy_class and
+    down), power_up (trait-specific damage up). atk_down is ATK down on your servant (boss
+    debuffs). special=True when the NP's special damage applies to this enemy.
+    Level, NP level, NP version, Fou and CE come from the roster (else max level, NP1, newest
+    NP, 1000 Fou, no CE); extra_atk overrides Fou + CE ATK. ratio is the calibration from this
+    fight: real HP drop of an earlier NP divided by its estimate. enemy_class and
     enemy_attribute come from prepare_battle (e.g. "saber"/"human"). Ignores crits, cards, and
     enemy damage cut or special defenses; read those off the boss's status and leave margin."""
     matches = atlas.find_servants(servant, limit=1)
@@ -326,14 +330,20 @@ def estimate_np_damage(
     mine = memory.owned(s["collectionNo"]) or {}
     lvl = level or mine.get("level") or s["lvMax"]
     npl = np_level or mine.get("np") or 1
+    if extra_atk is None:
+        extra_atk, atk_from = _extra_atk(mine)
+    else:
+        atk_from = "given"
     try:
         r = atlas.np_damage(s, npl, lvl, overcharge, enemy_class, enemy_attribute, atk_up, card_up, np_up,
-                            def_down, power_up, special, extra_atk)
+                            def_down, power_up, special, extra_atk, atk_down, mine.get("np_version"), ratio)
     except ValueError as e:
         return str(e)
     text = (f"#{s['collectionNo']} {s['name']} Lv{lvl} NP{npl} OC{overcharge}: {r['np']} "
             f"[{r['card']}, {r['hits']} hits, {r['np_percent']:g}%]\n"
-            f"damage {r['min']:,} to {r['max']:,} (avg {r['avg']:,})\n"
+            f"damage {r['min']:,} to {r['max']:,} (avg {r['avg']:,})"
+            + (f", calibrated x{ratio:g}" if ratio != 1 else "") + "\n"
+            f"extra ATK {extra_atk:,} ({atk_from}), "
             f"ATK {r['atk']:,}, class rate x{r['class_rate']:g}, vs {enemy_class} x{r['triangle']:g}, "
             f"attribute x{r['attribute']:g}, special x{r['special']:g}")
     if r["has_special"] and not special:
@@ -344,6 +354,22 @@ def estimate_np_damage(
                    else f"leaves {enemy_hp - r['max']:,}+ HP")
         text += f"\nvs {enemy_hp:,} HP: {verdict}"
     return text
+
+
+def _extra_atk(mine: dict) -> tuple[int, str]:
+    """Fou + CE ATK for a roster entry, and where the numbers came from."""
+    fou = mine.get("fou")
+    parts = [f"Fou {fou}" if fou is not None else "Fou 1000 assumed"]
+    total = 1000 if fou is None else fou
+    if mine.get("ce"):
+        ces = atlas.find_craft_essences(mine["ce"], limit=1)
+        if ces:
+            c = ces[0]
+            lvl = (memory.owned_ce(c["collectionNo"]) or {}).get("level")
+            atk = c["atkGrowth"][min(lvl or c["lvMax"], len(c["atkGrowth"])) - 1]
+            total += atk
+            parts.append(f"{c['name']} {atk}" + ("" if lvl else " at max level, assumed"))
+    return total, " + ".join(parts)
 
 
 @mcp.tool()
@@ -373,13 +399,18 @@ def update_servant(
     bond: int | None = None,
     grand: bool | None = None,
     ce: str | None = None,
+    fou: int | None = None,
+    np_version: str | None = None,
     note: str | None = None,
 ) -> str:
     """Record one of the user's own servants (not supports) as read from its details screen.
     `servant` is a name or collection number; only the fields you pass change. skills/appends
-    are levels in slot order, e.g. [10, 10, 9]. ce is the equipped craft essence."""
+    are levels in slot order, e.g. [10, 10, 9]. ce is the equipped craft essence. fou is the
+    ATK Fou bonus (e.g. 1000, 2000). np_version is the NP name the game shows, when the
+    servant has several versions (e.g. "Rayproof Kyrielight")."""
     return memory.update_servant(servant, level=level, np=np, skills=skills, appends=appends,
-                                 ascension=ascension, bond=bond, grand=grand, ce=ce, note=note)
+                                 ascension=ascension, bond=bond, grand=grand, ce=ce, fou=fou,
+                                 np_version=np_version, note=note)
 
 
 @mcp.tool()

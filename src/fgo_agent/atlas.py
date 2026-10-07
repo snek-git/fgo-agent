@@ -101,17 +101,26 @@ CARD_DAMAGE = {"B": 1.5, "A": 1.0, "Q": 0.8}
 
 def np_damage(s: dict, np_level: int, level: int, overcharge: int, enemy_class: str, enemy_attribute: str,
               atk_up: float = 0, card_up: float = 0, np_up: float = 0, def_down: float = 0,
-              power_up: float = 0, special: bool = False, extra_atk: int = 1000) -> dict:
+              power_up: float = 0, special: bool = False, extra_atk: int = 1000, atk_down: float = 0,
+              np_name: str | None = None, ratio: float = 1.0) -> dict:
     """Standard FGO NP damage formula. Buff arguments are percentages (30 = +30%).
 
     0.23 * ATK * NP% * card * (1 + card up) * class ATK rate * class triangle * attribute
-         * (1 + ATK up + DEF down) * (1 + NP damage up + power mod) * special, times 0.9 to 1.099.
-    Buff caps applied: card up 400%, ATK up + DEF down 400%, NP damage up 500%.
+         * (1 + ATK up - ATK down + DEF down) * (1 + NP damage up + power mod) * special,
+         times 0.9 to 1.099, times the calibration ratio.
+    Buff caps applied: card up 400%, ATK mod -100% to 400%, NP damage up 500%.
+    np_name picks the NP version the player owns; without it the newest version is used.
     """
     nps = [np for np in s["noblePhantasms"]
            if any(f["funcType"].startswith("damageNp") for f in np["functions"])]
     if not nps:
         raise ValueError(f"{s['name']} has no damaging NP")
+    if np_name:
+        named = [np for np in nps if np_name.casefold() in np["name"].casefold()]
+        if not named:
+            names = sorted({np["name"] for np in nps})
+            raise ValueError(f"{s['name']} has no damaging NP named {np_name!r}; versions: {', '.join(names)}")
+        nps = named
     np = _versions(nps, "num")[max(_versions(nps, "num"))][-1]  # newest version of the last NP slot
     func = next(f for f in np["functions"] if f["funcType"].startswith("damageNp"))
     oc = min(max(overcharge, 1), 5)
@@ -124,12 +133,12 @@ def np_damage(s: dict, np_level: int, level: int, overcharge: int, enemy_class: 
     triangle = _multiplier(class_relation(), s["className"], enemy_class)
     attribute = _multiplier(attribute_relation(), s["attribute"], enemy_attribute)
     card_mod = 1 + min(card_up, 400) / 100
-    atk_mod = 1 + min(atk_up + def_down, 400) / 100
+    atk_mod = 1 + min(max(atk_up - atk_down + def_down, -100), 400) / 100
     np_mod = 1 + min(np_up + power_up, 500) / 100
     special_mod = sval.get("Correction", 1000) / 1000 if special and "Correction" in sval else 1.0
 
     base = (0.23 * atk * sval["Value"] / 1000 * CARD_DAMAGE[card] * card_mod * rate * triangle * attribute
-            * atk_mod * np_mod * special_mod)
+            * atk_mod * np_mod * special_mod * ratio)
     return {
         "np": np["name"], "card": card, "hits": len(np.get("npDistribution") or []), "atk": atk,
         "np_percent": sval["Value"] / 10, "class_rate": rate, "triangle": triangle, "attribute": attribute,
