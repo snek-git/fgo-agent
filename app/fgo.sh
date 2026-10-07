@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Play FGO yourself: start the emulator if needed, open the game, show it in a scrcpy window.
 # If an agent session is playing, the window opens view-only so you don't fight over taps.
+# Closing the window closes FGO and stops the emulator, so the game never sits logged in
+# around the clock; an agent run keeps both running.
 set -uo pipefail
 
 SERIAL=127.0.0.1:5555
@@ -44,13 +46,23 @@ if [ -z "$(adb -s "$SERIAL" shell pidof "$PKG" 2>>"$LOG" | tr -d '\r')" ]; then
 fi
 
 # An agent session (scripts/play.sh) owns the input while it runs
+agent_running() { pgrep -f "claude.*--strict-mcp-config" >/dev/null; }
 control=()
-if pgrep -f "claude.*--strict-mcp-config" >/dev/null; then
+if agent_running; then
   control=(--no-control)
   notify-send -a "$TITLE" -i "$PROJECT/app/fgo.png" "$TITLE" \
     "The agent is playing, so this window is view-only. Stop the agent to play yourself." || true
 fi
 
 # The image has no opus encoder, so audio goes over aac
-exec scrcpy -s "$SERIAL" --window-title="$TITLE" --audio-codec=aac --max-fps=60 \
+scrcpy -s "$SERIAL" --window-title="$TITLE" --audio-codec=aac --max-fps=60 \
   --disable-screensaver "${control[@]}" 2>>"$LOG"
+echo "window closed (scrcpy exit $?)" >&2
+
+if agent_running; then
+  echo "agent still playing: leaving FGO and the emulator running" >&2
+  exit 0
+fi
+adb -s "$SERIAL" shell am force-stop "$PKG" >&2 || true
+docker stop fgo-redroid >&2 || echo "could not stop the emulator" >&2
+echo "FGO closed, emulator stopped" >&2
