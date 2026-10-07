@@ -67,7 +67,7 @@ def set_goal(text: str) -> None:
 
 # --- roster ---
 
-FIELDS = ("level", "np", "skills", "appends", "ascension", "bond", "grand", "ce", "fou", "np_version", "note")
+FIELDS = ("level", "np", "skills", "appends", "ascension", "grails", "bond", "grand", "ce", "fou", "np_version", "note")
 
 
 def _load() -> dict:
@@ -110,6 +110,8 @@ def format_entry(e: dict) -> str:
         parts.append("appends " + "/".join(map(str, e["appends"])))
     if "ascension" in e:
         parts.append(f"asc {e['ascension']}")
+    if e.get("grails"):
+        parts.append(f"grails {e['grails']}")
     if "bond" in e:
         parts.append(f"bond {e['bond']}")
     if e.get("grand"):

@@ -16,10 +16,20 @@ def main() -> None:
     sub.add_parser("bench", help="time FGA's screen detection through the bridge")
     watch = sub.add_parser("watch", help="follow a headless play log live (latest by default)")
     watch.add_argument("log", nargs="?")
+    imp = sub.add_parser("import-account", help="fill the roster and CE list from a captured login response")
+    imp.add_argument("capture", nargs="?", help="default: the latest in data/capture")
     view = sub.add_parser("view", help="web page: live game screen with the agent's feed under it")
     view.add_argument("--host", default="127.0.0.1", help="0.0.0.0 to open it from your phone on the LAN")
     view.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
+
+    if args.cmd == "import-account":
+        from pathlib import Path
+
+        from .account import import_capture, latest_capture
+
+        print(import_capture(Path(args.capture) if args.capture else latest_capture()))
+        return
 
     if args.cmd == "view":
         from .view import run as view_run

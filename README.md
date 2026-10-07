@@ -46,7 +46,21 @@ It reads Claude Code's own session transcript, so it follows interactive and hea
 `--host 0.0.0.0 --port 8000` opens it to your phone on the LAN.
 
 Either way the session gets only the `fgo` tools (no shell, files or web). `CLAUDE.md` is the
-playbook.
+playbook. `scripts/play.sh -b -r <session> "message"` resumes a session that stopped.
+
+## Account sync
+
+```sh
+scripts/capture-account.sh   # restart FGO through mitmproxy, save the login response, import it
+```
+
+Fills `data/roster.json` (every servant: level, NP, skills, appends, ascension, grails, Fou,
+bond, Grand) and `data/ces.json` (every CE: level, MLB, copies) from the game's own account data.
+mitmproxy runs on the PC at 127.0.0.1:8080 and the emulator reaches it through `adb reverse`;
+only `fate-go` hosts are intercepted, only the login response body is saved (never requests,
+which carry the signed auth parameters), and the emulator's proxy setting is cleared on exit.
+mitmproxy's CA goes into the emulator's system certificates (the game accepts it, no pinning).
+This reads FGO's traffic, which its terms forbid: it is passive, but your call.
 
 ## Debug
 
