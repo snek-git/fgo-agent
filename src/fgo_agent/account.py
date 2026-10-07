@@ -100,6 +100,63 @@ def find_owned(effect: str, target: str | None = None, class_name: str | None = 
             + "\n".join(rows))
 
 
+QUEST_KINDS = {1003: "interlude", 1001: "strengthening"}  # Atlas war ids: 幕間の物語, 強化クエスト
+
+
+def _quest_wars() -> dict[int, tuple[int, dict]]:
+    wars = atlas._cached("nice_war_lang_en.json", f"{atlas.API}/export/JP/nice_war_lang_en.json", atlas.EXPORT_MAX_AGE)
+    return {q["id"]: (w["id"], q) for w in wars if w["id"] in QUEST_KINDS for spot in w["spots"] for q in spot["quests"]}
+
+
+def pending_quests(kind: str | None = None) -> str:
+    """Interludes and strengthening quests of the user's servants that are not cleared yet,
+    split into open ones and locked ones (with what is missing), from the last sync."""
+    tables, when = _synced()
+    units = tables["userSvt"] + tables.get("userSvtStorage", [])
+    servants = {s["id"]: s for s in atlas.servants()}
+    owned: dict[int, dict] = {}
+    for u in units:
+        if u["svtId"] in servants and u["limitCount"] >= owned.get(u["svtId"], {}).get("limitCount", -1):
+            owned[u["svtId"]] = u
+    bond = {c["svtId"]: c["friendshipRank"] for c in tables.get("userSvtCollection", [])}
+    cleared = {q["questId"] for q in tables.get("userQuest", []) if q["clearNum"] > 0}
+    quests = _quest_wars()
+
+    def missing(cond: dict) -> str | None:
+        kind_, target, value = cond["type"], cond["targetId"], cond["value"]
+        if kind_ == "questClear":
+            return None if target in cleared else f"clear quest {atlas.quest_name(target)}"
+        if kind_ == "svtLimit":
+            have = owned.get(target, {}).get("limitCount", -1)
+            return None if have >= value else f"ascension {value} (has {have})"
+        if kind_ == "svtFriendship":
+            have = bond.get(target, 0)
+            return None if have >= value else f"bond {value} (has {have})"
+        if kind_ in ("svtGet", "date"):
+            return None
+        return f"{kind_} {target} {value}"
+
+    open_rows, locked_rows = [], []
+    for svt_id, u in sorted(owned.items(), key=lambda kv: servants[kv[0]]["collectionNo"]):
+        s = servants[svt_id]
+        for qid in s.get("relateQuestIds", []):
+            if qid in cleared or qid not in quests:
+                continue
+            war, q = quests[qid]
+            if kind and QUEST_KINDS[war] != kind:
+                continue
+            reasons = [m for c in q.get("releaseConditions", []) if (m := missing(c))]
+            row = (f"#{s['collectionNo']} {s['name']}: {QUEST_KINDS[war]} 「{q['name']}」 (quest {qid}, "
+                   f"{q.get('consume', '?')} AP, {len(q['phases'])} phases)")
+            if reasons:
+                locked_rows.append(f"{row} needs {', '.join(sorted(set(reasons)))}")
+            else:
+                open_rows.append(row)
+    return (f"from the account sync of {when}; quests cleared since then still show here\n"
+            f"OPEN ({len(open_rows)}):\n" + ("\n".join(open_rows) or "none")
+            + f"\nLOCKED ({len(locked_rows)}):\n" + ("\n".join(locked_rows) or "none"))
+
+
 def import_capture(path: Path) -> str:
     tables = _tables(path)
     units = tables["userSvt"] + tables.get("userSvtStorage", [])

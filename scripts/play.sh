@@ -3,20 +3,35 @@
 # usage: scripts/play.sh ["goal"]        interactive: watch it live, interrupt with Esc
 #        scripts/play.sh -b ["goal"]     headless: logs to logs/play-<time>.jsonl,
 #                                        follow it with `uv run fgo-agent watch`
-#        scripts/play.sh -b -r <session> "message"   resume a session that stopped
+#        scripts/play.sh -d ["goal"]     headless as the user service fgo-agent-run, so it
+#                                        keeps going if the terminal or Claude Code closes;
+#                                        stop it with `systemctl --user stop fgo-agent-run`
+#        add -r <session> to resume a session that stopped, with the goal as the message
+# The emulator and FGO start if they are not running, and stop again after the run unless the
+# FGO window (app/fgo.sh) is open.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 background=false
+detach=false
 resume=()
 while [ $# -gt 0 ]; do
   case "$1" in
     -b) background=true; shift ;;
+    -d) detach=true; shift ;;
     -r) resume=(--resume "$2"); shift 2 ;;
     *) break ;;
   esac
 done
 goal="${1:-Continue the main story from wherever the game is. Clear as many quests as you can.}"
+
+if $detach; then
+  systemd-run --user --unit=fgo-agent-run --collect --working-directory="$PWD" \
+    --setenv=PATH="$PATH" --setenv=HOME="$HOME" \
+    scripts/play.sh -b "${resume[@]/#--resume/-r}" "$goal"
+  echo "running as fgo-agent-run; follow it with: uv run fgo-agent watch"
+  exit 0
+fi
 
 if [ ${#resume[@]} -gt 0 ]; then
   prompt="$goal"
@@ -31,12 +46,24 @@ spells are a last resort, and a clear that needed them does not count as a succe
 a short report of what you cleared, what it cost, and anything that went wrong with the tools."
 fi
 
+scripts/emu.sh up
+stop_emulator() {
+  # Leave it running when the user has the game window open
+  if pgrep -x scrcpy > /dev/null; then
+    echo "FGO window open: leaving the emulator running"
+  else
+    scripts/emu.sh down && echo "emulator stopped"
+  fi
+}
+trap stop_emulator EXIT
+
 # --tools "" removes every built-in tool (no shell, files, web, agents); only the fgo server's
 # tools exist, and they are pre-approved.
 flags=(--tools "" --mcp-config .mcp.json --strict-mcp-config --allowedTools "mcp__fgo__*" "${resume[@]}")
 
 if ! $background; then
-  exec claude "${flags[@]}" "$prompt"
+  claude "${flags[@]}" "$prompt"
+  exit $?
 fi
 
 mkdir -p logs

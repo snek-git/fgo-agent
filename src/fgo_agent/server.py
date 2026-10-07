@@ -432,6 +432,15 @@ def find_owned(effect: str, target: str | None = None, class_name: str | None = 
 
 
 @mcp.tool()
+def pending_quests(kind: str | None = None) -> str:
+    """Interludes (幕間の物語) and strengthening quests (強化クエスト) of the user's servants that
+    are not cleared yet: OPEN ones with their Japanese name, quest id and AP, and LOCKED ones with
+    what they still need (bond, ascension, an earlier quest). kind: "interlude" or "strengthening".
+    From the last account sync, so quests cleared since then still show."""
+    return account.pending_quests(kind)
+
+
+@mcp.tool()
 def account_summary() -> str:
     """The user's account from the last sync: master level, AP max, cost cap, QP, Saint Quartz
     (never spend), when command spells come back, mystic codes with levels."""

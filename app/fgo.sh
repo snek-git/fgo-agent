@@ -6,7 +6,6 @@
 set -uo pipefail
 
 SERIAL=127.0.0.1:5555
-PKG=com.aniplex.fategrandorder
 TITLE="Fate/Grand Order"
 PROJECT="$(cd "$(dirname "$(readlink -f "$0")")/.." && pwd)"
 LOG="$HOME/.cache/fgo-agent/launcher.log"
@@ -26,24 +25,11 @@ if pgrep -f "scrcpy.*--window-title=$TITLE" >/dev/null; then
   exit 0
 fi
 
-# Emulator
+# Emulator and game
 if [ "$(docker inspect -f '{{.State.Running}}' fgo-redroid 2>>"$LOG")" != "true" ]; then
   notify-send -a "$TITLE" -i "$PROJECT/app/fgo.png" "$TITLE" "Starting the emulator..." || true
-  docker compose -f "$PROJECT/emu/compose.yaml" up -d >&2 || fail "could not start the emulator container"
 fi
-for _ in $(seq 1 60); do
-  [ "$(docker exec fgo-redroid getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] && break
-  sleep 2
-done
-[ "$(docker exec fgo-redroid getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ] \
-  || fail "the emulator did not finish booting"
-adb connect "$SERIAL" >&2 || fail "adb could not connect to $SERIAL"
-
-# Game
-if [ -z "$(adb -s "$SERIAL" shell pidof "$PKG" 2>>"$LOG" | tr -d '\r')" ]; then
-  adb -s "$SERIAL" shell am start -n "$PKG/jp.delightworks.Fgo.player.AndroidPlugin" >&2 \
-    || fail "could not start FGO"
-fi
+"$PROJECT/scripts/emu.sh" up || fail "could not start the emulator or FGO"
 
 # An agent session (scripts/play.sh) owns the input while it runs
 agent_running() { pgrep -f "claude.*--strict-mcp-config" >/dev/null; }
@@ -63,6 +49,4 @@ if agent_running; then
   echo "agent still playing: leaving FGO and the emulator running" >&2
   exit 0
 fi
-adb -s "$SERIAL" shell am force-stop "$PKG" >&2 || true
-docker stop fgo-redroid >&2 || echo "could not stop the emulator" >&2
-echo "FGO closed, emulator stopped" >&2
+"$PROJECT/scripts/emu.sh" down && echo "FGO closed, emulator stopped" >&2
