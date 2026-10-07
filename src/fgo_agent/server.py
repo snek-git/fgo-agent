@@ -30,9 +30,9 @@ so you know every wave's enemies and your own kit.
 Set your goal with `set_goal` at the start; it is echoed in every result. Before spending
 skills on a bar, check `estimate_np_damage`: use only what the bar needs.
 You keep memory between sessions: start every session with `read_notes`, and check `roster`
-and `list_ces` before building a party. Record what you learn as you go: servant and CE
-details whenever you open them (`update_servant`, `update_ce`), and lessons, UI quirks and
-battle results in notes (`write_note`).
+and `list_ces` before building a party. Record what you learn as you go: every one of the
+user's servants and CEs you see, with every field the screen shows (`update_servant`,
+`update_ce`), and lessons, UI quirks and battle results in notes (`write_note`).
 Apples may be used to refill AP. Never spend Saint Quartz (聖晶石), summon, or buy anything
 unless the user told you to. Command spells (令呪) are a last resort: plan to win without them.
 A clear that needed command spells is not a success; say so in your report and battle note."""

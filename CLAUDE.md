@@ -27,9 +27,14 @@ watches your session live (`fgo-agent view`), and these lines are how they follo
 
 You forget everything between sessions unless you write it down.
 - Start every session with `read_notes`, then read the topics that matter for the task.
-- Whenever you open a servant's details screen, record it with `update_servant` (level, NP,
-  skills, appends, bond, Grand, CE). Use the collection number when a name is ambiguous
-  (e.g. Jeanne d'Arc (Alter) is #106 Avenger, #219 Berserker). Same for CEs with `update_ce`.
+- The roster only knows what you record, so record every one of the user's servants you see,
+  every time: on the party screen, in battle status and on any details screen. Call
+  `update_servant` with every field the screen shows (level, NP, skills, appends, bond, Grand,
+  CE, ATK Fou, NP version name) and fix fields that changed. Supports are not the user's: skip
+  them. Use the collection number when a name is ambiguous (e.g. Jeanne d'Arc (Alter) is #106
+  Avenger, #219 Berserker). Same for CEs with `update_ce` (level, MLB).
+- Before a fight, check `roster` for each party member. A member with no entry or missing
+  fields: long-press it on the party screen and record it before you start.
 - Check `roster` and `list_ces` before building a party.
 - `write_note` lessons as you learn them: UI quirks ("ui"), account facts ("account"), and for
   every hard fight a "battle-<quest>" note with the party, the turn plan, what happened and
