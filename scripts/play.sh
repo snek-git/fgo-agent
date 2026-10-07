@@ -17,10 +17,16 @@ when you have been stuck on the same screen for a while. End with a short report
 cleared and anything that went wrong with the tools."
 
 echo "logging to $log"
+# --tools "" removes every built-in tool (no shell, files, web, agents); only the fgo server's
+# tools exist, and they are pre-approved.
+set +e
 claude -p "$prompt" \
+  --tools "" \
   --mcp-config .mcp.json --strict-mcp-config \
   --allowedTools "mcp__fgo__*" \
-  --disallowedTools "Bash" "Edit" "Write" "NotebookEdit" "WebFetch" "WebSearch" "Agent" \
   --output-format stream-json --verbose \
-  > "$log"
-echo "exit=$? log=$log"
+  > "$log" 2> "$log.stderr"
+code=$?
+set -e
+echo "exit=$code log=$log"
+exit $code
