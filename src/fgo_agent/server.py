@@ -70,8 +70,9 @@ def advance(timeout: int = 120) -> list:
     """Let FGA's loop run until there is a decision for you: it skips story, taps through
     result, bond, drops and reward screens, rejects friend requests, waits out NP and wave
     animations. Returns the screen it stopped on: battle (your turn), menu, support, repeat,
-    ap_refill, withdraw, inventory_full, unknown (nothing matched and the screen is still),
-    or timeout."""
+    ap_refill, withdraw, inventory_full, close_dialog (a dialog with a 閉じる button: read
+    it), unknown (a screen none of FGA's detectors know: popups, tutorial pages, summon
+    screens; read the screenshot and tap), or timeout."""
     return _view(bridge().call("advance", timeout=timeout))
 
 

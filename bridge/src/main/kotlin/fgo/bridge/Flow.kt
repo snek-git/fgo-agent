@@ -66,10 +66,13 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
         }),
         Screen("support", { isInSupport() }, null),
         Screen("repeat", { findRepeatButton() != null }, null),
-        Screen("ordeal_out_of_pods", { images[Images.Close] in locations.ordealCallOutOfPodsRegion }, null),
-        Screen("interlude_end", { images[Images.Close] in locations.interludeEndScreenClose }, {
-            locations.interludeCloseClick.click()
-        }),
+        // FGA's ordeal-call and interlude-end checks only look for a 閉じる button; FGA can act on
+        // them because it only meets them right after a quest. Here any such dialog matches, so
+        // the agent reads it and decides.
+        Screen("close_dialog", {
+            images[Images.Close] in locations.ordealCallOutOfPodsRegion ||
+                images[Images.Close] in locations.interludeEndScreenClose
+        }, null),
         Screen("withdraw", { withdraw.needsToWithdraw() }, null),
         Screen("story", { locations.menuStorySkipRegion.exists(images[Images.StorySkip], similarity = 0.7) }, ::skipStory),
         Screen("friend_request", { images[Images.SupportExtra] in locations.resultFriendRequestRegion }, {
@@ -139,20 +142,33 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
         val deadline = TimeSource.Monotonic.markNow() + timeoutSeconds.seconds
         var previous: Pattern? = null
         var stillFor = 0
+        var unmatchedSince = TimeSource.Monotonic.markNow()
         try {
             while (deadline.hasNotPassedNow()) {
                 val match = useSameSnapIn { screens.firstOrNull { it.check() } }
-                if (match != null) stillFor = 0
+                if (match != null) {
+                    stillFor = 0
+                    unmatchedSince = TimeSource.Monotonic.markNow()
+                }
                 when {
-                    // A black screen is a transition, never something to decide on
-                    match == null && locations.scriptArea.isBlack() -> stillFor = 0
+                    // Black (fades, wave changes) and white (NP flashes) are transitions,
+                    // never something to decide on
+                    match == null && (locations.scriptArea.isBlack() || locations.scriptArea.isWhite()) -> {
+                        stillFor = 0
+                        unmatchedSince = TimeSource.Monotonic.markNow()
+                    }
                     match == null -> {
                         val now = locations.scriptArea.getPattern("settle")
                         stillFor = if (previous?.findMatches(now, 0.98)?.any() == true) stillFor + 1 else 0
                         previous?.close()
                         previous = now
-                        // ~2s without change: a screen that waits for input, not an animation
-                        if (stillFor >= 3) return "unknown"
+                        // Out of battle: ~2s without change is a screen waiting for input, and
+                        // menus can loop animations forever, so give up after 8s regardless.
+                        // In battle an unknown screen is almost always an NP animation, which can
+                        // hold still for seconds, so only a long stillness counts there.
+                        val settled = stillFor >= if (isInBattle) 20 else 3
+                        val idleTooLong = !isInBattle && unmatchedSince.elapsedNow() > 8.seconds
+                        if (settled || idleTooLong) return "unknown"
                     }
                     match.handle != null -> match.handle.invoke()
                     else -> {

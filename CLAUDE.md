@@ -6,8 +6,8 @@ game is ready. Every tool returns a screenshot plus state.
 
 ## The loop
 
-- `look` tells you which screen FGA sees: battle, menu, support, repeat, ap_refill, withdraw,
-  inventory_full, story, loading, or unknown.
+- `look` tells you which screen FGA sees: battle, cards, menu, support, repeat, ap_refill,
+  withdraw, inventory_full, close_dialog, story, loading, or unknown.
 - After anything that starts animations or loading (starting a quest, a battle turn, closing a
   popup), call `advance`. It skips story, waits out loading and NP/wave animations, taps
   through results, bond, drops and rewards, rejects friend requests, and returns when you
