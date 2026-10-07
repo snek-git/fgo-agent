@@ -15,7 +15,16 @@ def main() -> None:
     sub.add_parser("bench", help="time FGA's screen detection through the bridge")
     watch = sub.add_parser("watch", help="follow a headless play log live (latest by default)")
     watch.add_argument("log", nargs="?")
+    view = sub.add_parser("view", help="web page: live game screen with the agent's feed under it")
+    view.add_argument("--host", default="127.0.0.1", help="0.0.0.0 to open it from your phone on the LAN")
+    view.add_argument("--port", type=int, default=8765)
     args = parser.parse_args()
+
+    if args.cmd == "view":
+        from .view import run as view_run
+
+        view_run(args.host, args.port)
+        return
 
     if args.cmd == "watch":
         from .watch import main as watch_main

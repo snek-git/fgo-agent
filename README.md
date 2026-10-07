@@ -37,7 +37,13 @@ scrcpy -s 127.0.0.1:5555 --audio-codec=aac   # watch or play by hand (no opus en
 scripts/play.sh "clear today's daily quests"      # live in your terminal, Esc to interrupt
 scripts/play.sh -b "farm bones until AP is gone"  # headless, logs to logs/
 uv run fgo-agent watch                            # follow the latest headless log
+uv run fgo-agent view                             # web page: live screen + the agent's feed
 ```
+
+`view` serves http://127.0.0.1:8765: the game screen live, and under it the playing session's
+notes, tool calls, results (collapsed, click to expand) and the screenshot it saw at each step.
+It reads Claude Code's own session transcript, so it follows interactive and headless runs alike.
+`--host 0.0.0.0 --port 8000` opens it to your phone on the LAN.
 
 Either way the session gets only the `fgo` tools (no shell, files or web). `CLAUDE.md` is the
 playbook.

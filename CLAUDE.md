@@ -6,6 +6,9 @@ game is ready. Every tool returns a screenshot plus state.
 
 ## The loop
 
+Before each action, write one short line: what you see and why you are doing it. The user
+watches your session live (`fgo-agent view`), and these lines are how they follow your plan.
+
 - `look` tells you which screen FGA sees: battle, cards, menu, support, repeat, ap_refill,
   withdraw, inventory_full, close_dialog, story, loading, or unknown.
 - After anything that starts animations or loading (starting a quest, a battle turn, closing a

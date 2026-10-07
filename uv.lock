@@ -190,6 +190,8 @@ dependencies = [
     { name = "mcp" },
     { name = "numpy" },
     { name = "opencv-python-headless" },
+    { name = "starlette" },
+    { name = "uvicorn" },
 ]
 
 [package.metadata]
@@ -197,6 +199,8 @@ requires-dist = [
     { name = "mcp", specifier = ">=2.3.0" },
     { name = "numpy", specifier = ">=2.5.3" },
     { name = "opencv-python-headless", specifier = ">=5.0.0.93" },
+    { name = "starlette", specifier = ">=1.7.0" },
+    { name = "uvicorn", specifier = ">=0.54.0" },
 ]
 
 [[package]]

@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FGO Agent</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --line: #262b36; --text: #e6e8ee; --muted: #8a92a6;
+    --say: #f2f4f8; --call: #7cc4ff; --ok: #9be3a4; --err: #ff7b7b; --think: #c9a7ff; --accent: #ffcf6b;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 14px/1.45 system-ui, -apple-system, "Noto Sans JP", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 0 16px 40px; }
+  /* screen and status stay on top while the feed scrolls under them */
+  .top { position: sticky; top: 0; z-index: 5; background: var(--bg); padding-top: 12px; }
+  .screen { aspect-ratio: 16 / 9; max-height: 62vh; margin: 0 auto; background: #000; border-radius: 10px;
+            overflow: hidden; border: 1px solid var(--line); }
+  .screen img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 10px 2px;
+         color: var(--muted); font-size: 13px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+  .bar b { color: var(--text); font-weight: 600; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--err); display: inline-block;
+         margin-right: 6px; vertical-align: middle; }
+  .dot.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+  .state { color: var(--accent); }
+  #feed { display: flex; flex-direction: column; gap: 6px; }
+  .ev { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .ev .t { color: var(--muted); font-size: 11px; margin-right: 8px; font-variant-numeric: tabular-nums; }
+  .say { border-left: 3px solid var(--say); font-size: 15px; white-space: pre-wrap; }
+  .think { border-left: 3px solid var(--think); color: var(--think); white-space: pre-wrap; }
+  .prompt { border-left: 3px solid var(--accent); color: var(--muted); white-space: pre-wrap; font-size: 12px; }
+  .call { border-left: 3px solid var(--call); }
+  .call .name { color: var(--call); font-weight: 600; font-family: ui-monospace, monospace; }
+  .call .args { color: var(--text); font-family: ui-monospace, monospace; font-size: 12px; margin-left: 6px;
+                word-break: break-word; }
+  .res { display: flex; gap: 10px; align-items: flex-start; margin-top: 6px; }
+  .res details { flex: 1; min-width: 0; }
+  .res summary { cursor: pointer; color: var(--ok); font: 12px/1.5 ui-monospace, monospace;
+                 white-space: nowrap; overflow: hidden; text-overflow: ellipsis; list-style: none; }
+  .res summary::before { content: "▸ "; color: var(--muted); }
+  .res details[open] summary::before { content: "▾ "; }
+  .res.err summary { color: var(--err); }
+  .res pre { margin: 6px 0 0; white-space: pre-wrap; word-break: break-word; color: var(--text);
+             font: 12px/1.45 ui-monospace, monospace; max-height: 360px; overflow: auto;
+             background: #11141a; border: 1px solid var(--line); border-radius: 6px; padding: 8px; }
+  .k { color: #7cc4ff; } .s { color: #9be3a4; } .n { color: #ffcf6b; } .b { color: #ff9fd0; }
+  .res img { width: 192px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 6px; cursor: zoom-in;
+             border: 1px solid var(--line); flex: none; }
+  .pending { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  #zoom { position: fixed; inset: 0; background: rgba(0,0,0,.85); display: none; align-items: center;
+          justify-content: center; cursor: zoom-out; z-index: 10; }
+  #zoom img { max-width: 96vw; max-height: 92vh; border-radius: 8px; }
+  @media (max-width: 600px) {
+    .res { flex-direction: column; }
+    .res img { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+  <div class="screen"><img src="/screen.mjpg" alt="live game screen"></div>
+  <div class="bar">
+    <span><span id="dot" class="dot"></span><b id="status">connecting</b></span>
+    <span>screen <b class="state" id="state">?</b></span>
+    <span>actions <b id="count">0</b></span>
+    <span>cost <b id="cost">$0</b></span>
+    <span>session <b id="session">none</b></span>
+  </div>
+  </div>
+  <div id="feed"></div>
+</main>
+<div id="zoom"><img alt=""></div>
+<script>
+  const feed = document.getElementById("feed");
+  const calls = new Map();
+  let actions = 0;
+
+  const time = (iso) => iso ? new Date(iso).toLocaleTimeString([], {hour12: false}) : "";
+  const el = (tag, cls, text) => {
+    const node = document.createElement(tag);
+    if (cls) node.className = cls;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  };
+  const add = (node) => feed.prepend(node);
+
+  function stamp(node, iso) {
+    if (iso) node.prepend(el("span", "t", time(iso)));
+    return node;
+  }
+
+  const escape = (s) => s.replace(/[&<>]/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;"}[c]));
+
+  // Indented JSON with keys, strings, numbers and literals colored
+  function highlight(value) {
+    return escape(JSON.stringify(value, null, 2)).replace(
+      /("(?:\\.|[^"\\])*")(\s*:)?|\b(-?\d+(?:\.\d+)?)\b|\b(true|false|null)\b/g,
+      (m, str, colon, num, lit) =>
+        str ? `<span class="${colon ? "k" : "s"}">${str}</span>${colon || ""}`
+            : num ? `<span class="n">${num}</span>` : `<span class="b">${lit}</span>`);
+  }
+
+  // One-line preview shown while collapsed
+  function preview(value) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      const parts = [];
+      if (value.screen && !Array.isArray(value.cards)) parts.push(value.screen);
+      if (value.battle) parts.push(`wave ${value.battle.wave} turn ${value.battle.turn_in_wave}`);
+      if (Array.isArray(value.cards)) {
+        const letter = {buster: "B", arts: "A", quick: "Q"};
+        parts.push("cards " + value.cards.map((c) => (letter[c.type] || "-") + (c.affinity === "weak" ? "!" : "")).join(" "));
+      }
+      if (value.note) parts.push(value.note);
+      if (parts.length) return parts.join(" · ");
+    }
+    return JSON.stringify(value);
+  }
+
+  function attachResult(card, ev) {
+    card.querySelector(".pending")?.remove();
+    const res = el("div", "res" + (ev.error ? " err" : ""));
+    const text = ev.text || "";
+    const details = el("details");
+    const body = el("pre");
+    let summary;
+    try {
+      const value = JSON.parse(text);
+      summary = preview(value);
+      body.innerHTML = highlight(value);
+    } catch {
+      summary = text.split("\n")[0];
+      body.textContent = text;
+    }
+    details.append(el("summary", "", summary), body);
+    res.append(details);
+    if (ev.image) {
+      const img = el("img");
+      img.src = "data:image/jpeg;base64," + ev.image;
+      img.alt = "what the agent saw";
+      res.append(img);
+    }
+    card.append(res);
+    try {
+      const screen = JSON.parse(ev.text).screen;
+      if (screen) document.getElementById("state").textContent = screen;
+    } catch {}
+  }
+
+  function show(ev) {
+    switch (ev.kind) {
+      case "session":
+        feed.replaceChildren(); calls.clear(); actions = 0;
+        document.getElementById("session").textContent = ev.id.slice(0, 8);
+        break;
+      case "prompt": add(stamp(el("div", "ev prompt", ev.text), ev.time)); break;
+      case "say": add(stamp(el("div", "ev say", ev.text), ev.time)); break;
+      case "think": add(stamp(el("div", "ev think", ev.text), ev.time)); break;
+      case "call": {
+        const card = el("div", "ev call");
+        card.append(el("span", "name", ev.tool));
+        const args = JSON.stringify(ev.args);
+        if (args !== "{}") card.append(el("span", "args", args));
+        card.append(el("div", "pending", "running..."));
+        stamp(card, ev.time);
+        calls.set(ev.id, card);
+        add(card);
+        document.getElementById("count").textContent = ++actions;
+        break;
+      }
+      case "result": {
+        const card = calls.get(ev.id);
+        if (card) attachResult(card, ev);
+        break;
+      }
+      case "cost":
+        if (ev.usd != null) document.getElementById("cost").textContent = "$" + ev.usd.toFixed(2);
+        break;
+    }
+  }
+
+  function connect() {
+    const source = new EventSource("/feed");
+    source.onopen = () => {
+      document.getElementById("dot").classList.add("live");
+      document.getElementById("status").textContent = "live";
+    };
+    source.onmessage = (msg) => show(JSON.parse(msg.data));
+    source.onerror = () => {
+      document.getElementById("dot").classList.remove("live");
+      document.getElementById("status").textContent = "reconnecting";
+    };
+  }
+  connect();
+
+  const zoom = document.getElementById("zoom");
+  feed.addEventListener("click", (e) => {
+    if (e.target.tagName === "IMG") { zoom.querySelector("img").src = e.target.src; zoom.style.display = "flex"; }
+  });
+  zoom.addEventListener("click", () => zoom.style.display = "none");
+</script>
+</body>
+</html>
