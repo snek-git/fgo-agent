@@ -101,6 +101,7 @@ def find_owned(effect: str, target: str | None = None, class_name: str | None = 
 
 
 QUEST_KINDS = {1003: "interlude", 1001: "strengthening"}  # Atlas war ids: 幕間の物語, 強化クエスト
+SELECTED = 16  # userSvt status flag for servants marked 選択 in the game
 
 
 def _quest_wars() -> dict[int, tuple[int, dict]]:
@@ -136,7 +137,10 @@ def pending_quests(kind: str | None = None) -> str:
             return None
         return f"{kind_} {target} {value}"
 
-    open_rows, locked_rows = [], []
+    # The user's favourites: servants marked 選択 in the game's servant list
+    favorite = {u["svtId"] for u in units if u["status"] & SELECTED}
+    open_rows: list[tuple[bool, str]] = []
+    locked_rows = []
     for svt_id, u in sorted(owned.items(), key=lambda kv: servants[kv[0]]["collectionNo"]):
         s = servants[svt_id]
         for qid in s.get("relateQuestIds", []):
@@ -146,14 +150,16 @@ def pending_quests(kind: str | None = None) -> str:
             if kind and QUEST_KINDS[war] != kind:
                 continue
             reasons = [m for c in q.get("releaseConditions", []) if (m := missing(c))]
-            row = (f"#{s['collectionNo']} {s['name']}: {QUEST_KINDS[war]} 「{q['name']}」 (quest {qid}, "
-                   f"{q.get('consume', '?')} AP, {len(q['phases'])} phases)")
+            row = (f"{'★ ' if svt_id in favorite else ''}#{s['collectionNo']} {s['name']}: {QUEST_KINDS[war]} "
+                   f"「{q['name']}」 (quest {qid}, {q.get('consume', '?')} AP, {len(q['phases'])} phases)")
             if reasons:
                 locked_rows.append(f"{row} needs {', '.join(sorted(set(reasons)))}")
             else:
-                open_rows.append(row)
+                open_rows.append((svt_id in favorite, row))
+    ordered = [row for fav, row in open_rows if fav] + [row for fav, row in open_rows if not fav]
     return (f"from the account sync of {when}; quests cleared since then still show here\n"
-            f"OPEN ({len(open_rows)}):\n" + ("\n".join(open_rows) or "none")
+            f"★ = the user's favourite (marked 選択 in game): do these first\n"
+            f"OPEN ({len(ordered)}):\n" + ("\n".join(ordered) or "none")
             + f"\nLOCKED ({len(locked_rows)}):\n" + ("\n".join(locked_rows) or "none"))
 
 
