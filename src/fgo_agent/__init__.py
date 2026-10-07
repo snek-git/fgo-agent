@@ -8,7 +8,8 @@ import time
 def main() -> None:
     parser = argparse.ArgumentParser(prog="fgo-agent")
     sub = parser.add_subparsers(dest="cmd", required=True)
-    sub.add_parser("serve", help="run the MCP server on stdio")
+    serve = sub.add_parser("serve", help="run the MCP server on stdio")
+    serve.add_argument("--planner", action="store_true", help="read-only tool set for the battle planner")
     sub.add_parser("screen", help="print FGA's reading of the current screen")
     shot = sub.add_parser("shot", help="save a screenshot")
     shot.add_argument("path", nargs="?", default="screen.png")
@@ -33,9 +34,9 @@ def main() -> None:
         return
 
     if args.cmd == "serve":
-        from .server import run
+        from .server import run, run_planner
 
-        run()
+        run_planner() if args.planner else run()
         return
 
     if args.cmd == "shot":

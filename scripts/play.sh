@@ -18,8 +18,9 @@ prompt="$goal
 You are on your own: nobody will answer questions. Follow CLAUDE.md. Stop and say why when
 the game needs something only the user should decide (spending Saint Quartz, summoning,
 purchases, accepting terms, account or transfer screens), when AP and apples both run out,
-or when you have been stuck on the same screen for a while. Apples are fine to use. End with
-a short report of what you cleared and anything that went wrong with the tools."
+or when you have been stuck on the same screen for a while. Apples are fine to use. Command
+spells are a last resort, and a clear that needed them does not count as a success. End with
+a short report of what you cleared, what it cost, and anything that went wrong with the tools."
 
 # --tools "" removes every built-in tool (no shell, files, web, agents); only the fgo server's
 # tools exist, and they are pre-approved.

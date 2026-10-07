@@ -5,7 +5,9 @@ run in FGA's own code through the bridge. The agent makes every decision.
 """
 
 import json
+import subprocess
 import time
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -26,14 +28,16 @@ In battle, act with FGA's skill notation (`act`), then `open_cards` and `play_ca
 Before a quest, read its Japanese name off the screen, call `find_quest`, then `prepare_battle`
 so you know every wave's enemies and your own kit.
 Set your goal with `set_goal` at the start; it is echoed in every result. Before spending
-skills or command spells on a bar, check `estimate_np_damage`: use only what the bar needs.
+skills on a bar, check `estimate_np_damage`: use only what the bar needs.
 You keep memory between sessions: start every session with `read_notes`, and check `roster`
 and `list_ces` before building a party. Record what you learn as you go: servant and CE
 details whenever you open them (`update_servant`, `update_ce`), and lessons, UI quirks and
 battle results in notes (`write_note`).
 Apples may be used to refill AP. Never spend Saint Quartz (聖晶石), summon, or buy anything
-unless the user told you to."""
+unless the user told you to. Command spells (令呪) are a last resort: plan to win without them.
+A clear that needed command spells is not a success; say so in your report and battle note."""
 
+PROJECT = Path(__file__).resolve().parents[2]
 mcp = MCPServer("fgo", instructions=INSTRUCTIONS)
 _device: Device | None = None
 _bridge: Bridge | None = None
@@ -399,5 +403,74 @@ def list_ces(query: str | None = None) -> str:
     return memory.list_ces(query)
 
 
+@mcp.tool()
+def zoom(x: int, y: int, width: int, height: int) -> list:
+    """Enlarged crop of the current screen, for small text and icons: NP %, buff icons, skill
+    cooldown numbers, card labels, JP menu text. Coordinates are screenshot pixels (1280x720)."""
+    image = device().screenshot()
+    x, y = max(0, x), max(0, y)
+    crop = image[y : y + height, x : x + width]
+    if crop.size == 0:
+        raise ValueError("the region is outside the 1280x720 screen")
+    scale = max(1.0, min(4.0, 1280 / crop.shape[1], 720 / crop.shape[0]))
+    crop = cv2.resize(crop, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+    return [f"crop ({x},{y}) {width}x{height}, enlarged x{scale:.1f}", Image(data=encode_jpeg(crop, 92), format="jpeg")]
+
+
+PLANNER_PROMPT = """\
+You are the battle planner for an agent playing Fate/Grand Order (JP) on the user's account.
+You have fresh context and read-only tools: look and zoom at the game, battle_brief or
+prepare_battle for the quest, the roster, CEs, notes (read battle-* and ui notes), lookups, and
+estimate_np_damage. You cannot act in the game.
+
+Request from the playing agent:
+{request}
+
+Current state: {state}
+Current goal: {goal}
+
+Produce a plan the playing agent can follow:
+- Per HP bar / wave: which NPs, which skills (FGA notation: a b c / d e f / g h i, ally target
+  digit after, j k l master skills, t1-t3 enemy target, x<front><back> order change), and what
+  to keep for later bars. Spend only what each bar needs; check that with estimate_np_damage
+  and say how sure you are.
+- The turns where the boss is dangerous and how to survive them (invincibility, taunt, damage
+  cut, Grand no-chain invincibility).
+- Facts you relied on (from the screen or game data) separately from assumptions.
+Plan without command spells. If the fight looks unwinnable without one, name the turn and why.
+Keep it under 400 words. Plain text."""
+
+
+@mcp.tool()
+def plan_battle(request: str) -> str:
+    """Ask a fresh battle planner (a separate Claude with read-only access: look, zoom, brief,
+    roster, notes, lookups, damage estimates) for a plan per HP bar. Use it before a hard fight
+    and after each bar break, with a request like "plan bar 2: boss 917k HP, everyone at 0% NP,
+    Jeanne buff-blocked". Takes a minute or two and costs extra, so not for easy quests."""
+    state = bridge().call("screen")
+    if state["screen"] == "battle":
+        state["battle"] = bridge().call("battle")["battle"]
+    prompt = PLANNER_PROMPT.format(request=request, state=json.dumps(state), goal=memory.goal() or "none")
+    result = subprocess.run(
+        ["claude", "-p", prompt, "--tools", "", "--mcp-config", str(PROJECT / "planner.mcp.json"),
+         "--strict-mcp-config", "--allowedTools", "mcp__fgo-plan__*", "--output-format", "json"],
+        capture_output=True, text=True, timeout=600, cwd=PROJECT)
+    try:
+        out = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        return f"planner failed (exit {result.returncode}): {result.stderr[-500:] or result.stdout[-500:]}"
+    cost = out.get("total_cost_usd")
+    return f"{out.get('result', '')}\n\n(planner: {out.get('num_turns')} turns, ${cost:.2f})" if cost else out.get("result", "")
+
+
 def run() -> None:
     mcp.run("stdio")
+
+
+def run_planner() -> None:
+    """The planner's MCP server: the same functions, read-only ones only."""
+    planner = MCPServer("fgo-plan", instructions="Read-only tools for planning FGO battles. You cannot act in the game.")
+    for tool in (look, zoom, battle_brief, prepare_battle, find_quest, roster, list_ces, read_notes,
+                 lookup_servant, lookup_ce, lookup_mystic_code, lookup_command_code, estimate_np_damage):
+        planner.tool()(tool)
+    planner.run("stdio")

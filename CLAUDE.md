@@ -54,8 +54,8 @@ You forget everything between sessions unless you write it down.
 
 ## Planning damage
 
-- Plan per HP bar: spend only what the current bar needs and keep cooldowns, command spells
-  and defensive skills for the bars after it. Overkill on bar 1 is how a run dies on bar 2.
+- Plan per HP bar: spend only what the current bar needs and keep cooldowns and defensive
+  skills for the bars after it. Overkill on bar 1 is how a run dies on bar 2.
 - `estimate_np_damage` before committing skills: sum every active buff yourself (skills, CE,
   passives, mystic code, support), give the enemy's HP, and see whether one NP is enough.
 - It ignores Grand and class score bonuses and some passives, so calibrate: after the first NP
@@ -86,6 +86,9 @@ You forget everything between sessions unless you write it down.
 - Never spend Saint Quartz (no SQ AP refills, no SQ continues after a wipe), never summon
   (including friend point summons), never buy anything, unless told to. On the AP refill
   screen, check the row you tap is an apple, not 聖晶石.
+- Command spells (令呪, the "o" notation) are a last resort for saving a run that is about to
+  be lost, never part of the plan. A clear that needed them is not a success: say so in the
+  report and the battle note, and plan the next attempt to win without them.
 - On support select, pick a friend whose servant suits the quest, then start the quest.
 - Tutorial overlays only accept taps inside the highlighted box; follow them with `tap`.
 - Coordinates for `tap` are the 1280x720 screenshot pixels.

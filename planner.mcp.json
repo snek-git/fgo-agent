@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "fgo-plan": {
+      "command": "uv",
+      "args": ["run", "--project", "/home/snek/dev/games/fgo-agent", "fgo-agent", "serve", "--planner"]
+    }
+  }
+}
