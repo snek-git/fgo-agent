@@ -10,6 +10,8 @@ for _ in $(seq 1 60); do
     adb connect 127.0.0.1:5555
     # The "viewing full screen" hint steals focus from the game on first launch.
     adb -s 127.0.0.1:5555 shell settings put secure immersive_mode_confirmations confirmed
+    # Media volume starts at 5/15, which makes scrcpy and the viewer's audio quiet.
+    adb -s 127.0.0.1:5555 shell cmd media_session volume --stream 3 --set 15 > /dev/null
     echo "redroid is up: scrcpy -s 127.0.0.1:5555 --audio-codec=aac"
     exit 0
   fi
