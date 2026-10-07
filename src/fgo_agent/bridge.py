@@ -5,11 +5,14 @@ import subprocess
 import threading
 from pathlib import Path
 
+from mcp.server.mcpserver.exceptions import ToolError
+
 BINARY = Path(__file__).resolve().parents[2] / "bridge" / "build" / "install" / "fga-bridge" / "bin" / "fga-bridge"
 
 
-class BridgeError(RuntimeError):
-    pass
+class BridgeError(ToolError):
+    """An expected failure: the MCP server passes its message on to the agent (other
+    exceptions reach the agent as a bare "Error executing tool")."""
 
 
 class Bridge:

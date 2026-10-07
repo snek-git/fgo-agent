@@ -122,7 +122,6 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
         locations.menuStorySkipYesClick.click()
     }
 
-    /** Which screen is up, without acting on it. */
     /**
      * Which screen is up, without acting on it. FGA's checks for passing moments (death and wave
      * animations, reward popups, rank-up) only make sense inside its own loop: on a status or
@@ -130,6 +129,18 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
      */
     fun screen(): String = if (cardsOpen) "cards" else useSameSnapIn {
         screens.firstOrNull { it.name !in loopOnly && it.check() }?.name ?: "unknown"
+    }.also(::noteScreen)
+
+    /**
+     * Like AutoBattle.menu()/repeatQuest(): these screens only show outside a battle, so the next
+     * battle starts a new run (also covers losses, which skip results). Every screen check runs
+     * this, because the agent often reaches them with taps instead of advance().
+     */
+    private fun noteScreen(name: String) {
+        if (name in setOf("menu", "support", "repeat")) {
+            isInBattle = false
+            runEnded = runEnded || state.stage != -1
+        }
     }
 
     private val loopOnly = setOf(
@@ -192,15 +203,7 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
                         match.handle.invoke()
                     }
                     else -> {
-                        when (match.name) {
-                            "battle" -> startTurn()
-                            // Like AutoBattle.menu()/repeatQuest(): the battle is over, so the
-                            // next one starts a new run (also covers losses, which skip results)
-                            "menu", "support", "repeat" -> {
-                                isInBattle = false
-                                runEnded = runEnded || state.stage != -1
-                            }
-                        }
+                        if (match.name == "battle") startTurn() else noteScreen(match.name)
                         return match.name
                     }
                 }
