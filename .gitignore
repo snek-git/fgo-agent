@@ -8,3 +8,4 @@ bridge/build/
 bridge/build.log
 *.png
 !bridge/src/main/resources/*.png
+logs/
