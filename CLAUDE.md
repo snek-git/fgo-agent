@@ -94,7 +94,9 @@ You forget everything between sessions unless you write it down.
 - Command spells (令呪, the "o" notation) are a last resort for saving a run that is about to
   be lost, never part of the plan. A clear that needed them is not a success: say so in the
   report and the battle note, and plan the next attempt to win without them.
-- On support select, pick a friend whose servant suits the quest, then start the quest.
+- On support select, open the オススメ (recommended) tab first, the leftmost in the class row:
+  the game lists supports suited to this quest there. Use the class tabs only when nothing
+  there fits. Pick a friend whose servant suits the quest, then start the quest.
 - Tutorial overlays only accept taps inside the highlighted box; follow them with `tap`.
 - Coordinates for `tap` are the 1280x720 screenshot pixels.
 - Turn on fast battle speed (top right of the card screen) if it is off.
