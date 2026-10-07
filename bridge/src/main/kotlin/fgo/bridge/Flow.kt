@@ -123,9 +123,18 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
     }
 
     /** Which screen is up, without acting on it. */
+    /**
+     * Which screen is up, without acting on it. FGA's checks for passing moments (death and wave
+     * animations, reward popups, rank-up) only make sense inside its own loop: on a status or
+     * details screen they match by accident, so look() never reports them.
+     */
     fun screen(): String = if (cardsOpen) "cards" else useSameSnapIn {
-        screens.firstOrNull { it.check() }?.name ?: "unknown"
+        screens.firstOrNull { it.name !in loopOnly && it.check() }?.name ?: "unknown"
     }
+
+    private val loopOnly = setOf(
+        "death_animation", "between_waves", "bond10_reward", "ce_reward", "rank_up", "friend_request"
+    )
 
     /** The agent can reach a battle through look() as well as advance(), so act/cards set up the turn too. */
     private fun requireCommandScreen() {

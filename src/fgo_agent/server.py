@@ -7,6 +7,9 @@ run in FGA's own code through the bridge. The agent makes every decision.
 import json
 import time
 
+import cv2
+import numpy as np
+
 from mcp.server.mcpserver import Image, MCPServer
 
 from . import atlas, memory
@@ -22,6 +25,8 @@ bond and wave transitions, and returns when you have a decision to make.
 In battle, act with FGA's skill notation (`act`), then `open_cards` and `play_cards`.
 Before a quest, read its Japanese name off the screen, call `find_quest`, then `prepare_battle`
 so you know every wave's enemies and your own kit.
+Set your goal with `set_goal` at the start; it is echoed in every result. Before spending
+skills or command spells on a bar, check `estimate_np_damage`: use only what the bar needs.
 You keep memory between sessions: start every session with `read_notes`, and check `roster`
 and `list_ces` before building a party. Record what you learn as you go: servant and CE
 details whenever you open them (`update_servant`, `update_ce`), and lessons, UI quirks and
@@ -49,7 +54,14 @@ def bridge() -> Bridge:
     return _bridge
 
 
-def _view(state: dict | None = None) -> list:
+_last_thumb: np.ndarray | None = None
+_unchanged = 0
+
+
+def _view(state: dict | None = None, acted: bool = True) -> list:
+    """Fresh screenshot plus state. After an action, warns when the screen stopped changing:
+    long-running agents loop on taps that do nothing (other harnesses lost hours to this)."""
+    global _last_thumb, _unchanged
     state = dict(state or {})
     if "screen" not in state:
         state["screen"] = bridge().call("screen")["screen"]
@@ -57,8 +69,19 @@ def _view(state: dict | None = None) -> list:
         state["battle"] = bridge().call("battle")["battle"]
     if _brief and state["screen"] == "battle":
         state["brief"] = "battle brief loaded, call battle_brief to re-read it"
+    if goal := memory.goal():
+        state["goal"] = goal
     image = device().screenshot()
-    return [json.dumps(state), Image(data=encode_jpeg(image), format="jpeg")]
+    thumb = cv2.resize(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), (64, 36), interpolation=cv2.INTER_AREA)
+    if acted and _last_thumb is not None and float(cv2.absdiff(thumb, _last_thumb).mean()) < 1.5:
+        _unchanged += 1
+    elif acted:
+        _unchanged = 0
+    _last_thumb = thumb
+    if _unchanged >= 3:
+        state["warning"] = (f"the screen has not changed after your last {_unchanged} actions; stop repeating "
+                            "them: read the screenshot again, then try a different element or back")
+    return [json.dumps(state, ensure_ascii=False), Image(data=encode_jpeg(image), format="jpeg")]
 
 
 @mcp.tool()
@@ -67,7 +90,16 @@ def look() -> list:
     ap_refill, withdraw, ...; "unknown" when none of FGA's detectors match). In battle it
     adds the wave, the turn within that wave, and which party member (1-6) is in each field
     slot (1-3)."""
-    return _view()
+    return _view(acted=False)
+
+
+@mcp.tool()
+def set_goal(goal: str) -> str:
+    """Set the current goal and next step in one or two lines, e.g. "Clear Grand Duel Extra I.
+    Next: pick a Buster support". Every tool result echoes it back, so it survives long sessions;
+    update it whenever the plan changes. It is also kept for the next session."""
+    memory.set_goal(goal)
+    return f"goal set: {goal}"
 
 
 @mcp.tool()
@@ -256,6 +288,58 @@ def prepare_battle(
 def battle_brief() -> str:
     """Re-read the brief stored by the last `prepare_battle`."""
     return _brief or "no brief loaded, call prepare_battle first"
+
+
+@mcp.tool()
+def estimate_np_damage(
+    servant: str,
+    enemy_class: str,
+    enemy_attribute: str,
+    np_level: int | None = None,
+    level: int | None = None,
+    overcharge: int = 1,
+    atk_up: float = 0,
+    card_up: float = 0,
+    np_up: float = 0,
+    def_down: float = 0,
+    power_up: float = 0,
+    special: bool = False,
+    extra_atk: int = 1000,
+    enemy_hp: int | None = None,
+) -> str:
+    """Estimate one NP's damage before spending resources: is this NP alone enough for the bar?
+    Buffs are percentages summed from everything active (30 = +30%): atk_up (ATK up), card_up
+    (Buster/Arts/Quick up for the NP's card type), np_up (NP damage up), def_down (enemy DEF
+    down), power_up (trait-specific damage up). special=True when the NP's special damage
+    applies to this enemy. extra_atk is Fou + CE ATK (default 1000 Fou, add the CE's ATK).
+    Level and NP level default to the roster entry (else max level, NP1). enemy_class and
+    enemy_attribute come from prepare_battle (e.g. "saber"/"human"). Ignores crits, cards, and
+    enemy damage cut or special defenses; read those off the boss's status and leave margin."""
+    matches = atlas.find_servants(servant, limit=1)
+    if not matches:
+        return f"no servant matches {servant!r}"
+    s = matches[0]
+    mine = memory.owned(s["collectionNo"]) or {}
+    lvl = level or mine.get("level") or s["lvMax"]
+    npl = np_level or mine.get("np") or 1
+    try:
+        r = atlas.np_damage(s, npl, lvl, overcharge, enemy_class, enemy_attribute, atk_up, card_up, np_up,
+                            def_down, power_up, special, extra_atk)
+    except ValueError as e:
+        return str(e)
+    text = (f"#{s['collectionNo']} {s['name']} Lv{lvl} NP{npl} OC{overcharge}: {r['np']} "
+            f"[{r['card']}, {r['hits']} hits, {r['np_percent']:g}%]\n"
+            f"damage {r['min']:,} to {r['max']:,} (avg {r['avg']:,})\n"
+            f"ATK {r['atk']:,}, class rate x{r['class_rate']:g}, vs {enemy_class} x{r['triangle']:g}, "
+            f"attribute x{r['attribute']:g}, special x{r['special']:g}")
+    if r["has_special"] and not special:
+        text += "\nThis NP has special damage; pass special=True if it applies to this enemy."
+    if enemy_hp:
+        verdict = ("kills even on a low roll" if r["min"] >= enemy_hp
+                   else "kills only on a good roll" if r["max"] >= enemy_hp
+                   else f"leaves {enemy_hp - r['max']:,}+ HP")
+        text += f"\nvs {enemy_hp:,} HP: {verdict}"
+    return text
 
 
 @mcp.tool()

@@ -89,6 +89,55 @@ def attribute_relation() -> dict:
     return _cached("NiceAttributeRelation.json", f"{API}/export/JP/NiceAttributeRelation.json", EXPORT_MAX_AGE)
 
 
+@cache
+def class_attack_rate() -> dict:
+    return _cached("NiceClassAttackRate.json", f"{API}/export/JP/NiceClassAttackRate.json", EXPORT_MAX_AGE)
+
+
+# --- damage ---
+
+CARD_DAMAGE = {"B": 1.5, "A": 1.0, "Q": 0.8}
+
+
+def np_damage(s: dict, np_level: int, level: int, overcharge: int, enemy_class: str, enemy_attribute: str,
+              atk_up: float = 0, card_up: float = 0, np_up: float = 0, def_down: float = 0,
+              power_up: float = 0, special: bool = False, extra_atk: int = 1000) -> dict:
+    """Standard FGO NP damage formula. Buff arguments are percentages (30 = +30%).
+
+    0.23 * ATK * NP% * card * (1 + card up) * class ATK rate * class triangle * attribute
+         * (1 + ATK up + DEF down) * (1 + NP damage up + power mod) * special, times 0.9 to 1.099.
+    Buff caps applied: card up 400%, ATK up + DEF down 400%, NP damage up 500%.
+    """
+    nps = [np for np in s["noblePhantasms"]
+           if any(f["funcType"].startswith("damageNp") for f in np["functions"])]
+    if not nps:
+        raise ValueError(f"{s['name']} has no damaging NP")
+    np = _versions(nps, "num")[max(_versions(nps, "num"))][-1]  # newest version of the last NP slot
+    func = next(f for f in np["functions"] if f["funcType"].startswith("damageNp"))
+    oc = min(max(overcharge, 1), 5)
+    svals = func.get(f"svals{oc}") if oc > 1 else func["svals"]
+    sval = (svals or func["svals"])[min(max(np_level, 1), len(func["svals"])) - 1]
+
+    card = CARD.get(str(np["card"]), "B")
+    atk = s["atkGrowth"][min(level, len(s["atkGrowth"])) - 1] + extra_atk
+    rate = class_attack_rate().get(s["className"], 1000) / 1000
+    triangle = _multiplier(class_relation(), s["className"], enemy_class)
+    attribute = _multiplier(attribute_relation(), s["attribute"], enemy_attribute)
+    card_mod = 1 + min(card_up, 400) / 100
+    atk_mod = 1 + min(atk_up + def_down, 400) / 100
+    np_mod = 1 + min(np_up + power_up, 500) / 100
+    special_mod = sval.get("Correction", 1000) / 1000 if special and "Correction" in sval else 1.0
+
+    base = (0.23 * atk * sval["Value"] / 1000 * CARD_DAMAGE[card] * card_mod * rate * triangle * attribute
+            * atk_mod * np_mod * special_mod)
+    return {
+        "np": np["name"], "card": card, "hits": len(np.get("npDistribution") or []), "atk": atk,
+        "np_percent": sval["Value"] / 10, "class_rate": rate, "triangle": triangle, "attribute": attribute,
+        "special": special_mod, "min": round(base * 0.9), "avg": round(base), "max": round(base * 1.099),
+        "has_special": "Correction" in sval,
+    }
+
+
 def quest_phase(quest_id: int, phase: int) -> dict:
     return _cached(f"quest_{quest_id}_{phase}.json", f"{API}/nice/JP/quest/{quest_id}/{phase}?lang=en")
 

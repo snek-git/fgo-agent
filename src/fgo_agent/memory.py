@@ -51,6 +51,20 @@ def write_note(topic: str, text: str, replace: bool = False) -> str:
     return f"saved to notes/{path.name}"
 
 
+# --- current goal ---
+
+GOAL = DATA / "goal.txt"
+
+
+def goal() -> str:
+    return GOAL.read_text().strip() if GOAL.exists() else ""
+
+
+def set_goal(text: str) -> None:
+    GOAL.parent.mkdir(parents=True, exist_ok=True)
+    GOAL.write_text(text.strip() + "\n")
+
+
 # --- roster ---
 
 FIELDS = ("level", "np", "skills", "appends", "ascension", "bond", "grand", "ce", "note")
