@@ -9,7 +9,7 @@ import time
 
 from mcp.server.mcpserver import Image, MCPServer
 
-from . import atlas
+from . import atlas, memory
 from .bridge import Bridge
 from .device import Device, encode_jpeg
 
@@ -22,6 +22,10 @@ bond and wave transitions, and returns when you have a decision to make.
 In battle, act with FGA's skill notation (`act`), then `open_cards` and `play_cards`.
 Before a quest, read its Japanese name off the screen, call `find_quest`, then `prepare_battle`
 so you know every wave's enemies and your own kit.
+You keep memory between sessions: start every session with `read_notes`, and check `roster`
+and `list_ces` before building a party. Record what you learn as you go: servant and CE
+details whenever you open them (`update_servant`, `update_ce`), and lessons, UI quirks and
+battle results in notes (`write_note`).
 Apples may be used to refill AP. Never spend Saint Quartz (聖晶石), summon, or buy anything
 unless the user told you to."""
 
@@ -237,6 +241,10 @@ def prepare_battle(
         if not found:
             unknown.append(mystic_code)
     _brief = atlas.battle_brief(quest_id, phase, members, equipped, mc)
+    yours = [f"#{m['collectionNo']} {m['name']}: {memory.format_entry(e)}"
+             for m in members if (e := memory.owned(m["collectionNo"]))]
+    if yours:
+        _brief += "\n\nYour copies (from the roster; supports may differ):\n" + "\n".join(yours)
     if unknown:
         _brief += f"\n\nNot found: {', '.join(unknown)}"
     return _brief
@@ -246,6 +254,63 @@ def prepare_battle(
 def battle_brief() -> str:
     """Re-read the brief stored by the last `prepare_battle`."""
     return _brief or "no brief loaded, call prepare_battle first"
+
+
+@mcp.tool()
+def read_notes(topic: str | None = None) -> str:
+    """Your notes from earlier sessions. Without a topic: the list of topics with their first
+    line. With a topic: that note in full."""
+    return memory.read_notes(topic)
+
+
+@mcp.tool()
+def write_note(topic: str, text: str, replace: bool = False) -> str:
+    """Save something worth knowing next session, under a short topic name, for example
+    "ui" (how menus behave, where buttons are), "account" (mystic codes, command spells,
+    progress), or "battle-<quest>" (party, turn plan, what worked, what went wrong). Appends
+    a dated entry; replace=True rewrites the whole topic (use it to keep a topic tidy)."""
+    return memory.write_note(topic, text, replace)
+
+
+@mcp.tool()
+def update_servant(
+    servant: str,
+    level: int | None = None,
+    np: int | None = None,
+    skills: list[int] | None = None,
+    appends: list[int] | None = None,
+    ascension: int | None = None,
+    bond: int | None = None,
+    grand: bool | None = None,
+    ce: str | None = None,
+    note: str | None = None,
+) -> str:
+    """Record one of the user's own servants (not supports) as read from its details screen.
+    `servant` is a name or collection number; only the fields you pass change. skills/appends
+    are levels in slot order, e.g. [10, 10, 9]. ce is the equipped craft essence."""
+    return memory.update_servant(servant, level=level, np=np, skills=skills, appends=appends,
+                                 ascension=ascension, bond=bond, grand=grand, ce=ce, note=note)
+
+
+@mcp.tool()
+def roster(query: str | None = None, class_name: str | None = None) -> str:
+    """The user's servants recorded so far, with levels, NP, skills, appends and bond. Filter by
+    a name fragment or a class (saber, archer, ..., shielder, ruler, avenger, moonCancer, ...)."""
+    return memory.roster(query, class_name)
+
+
+@mcp.tool()
+def update_ce(ce: str, level: int | None = None, mlb: bool | None = None, count: int | None = None,
+              note: str | None = None) -> str:
+    """Record a craft essence the user owns: level, whether it is max limit broken, how many
+    copies. `ce` is a name or collection number; only the fields you pass change."""
+    return memory.update_ce(ce, level=level, mlb=mlb, count=count, note=note)
+
+
+@mcp.tool()
+def list_ces(query: str | None = None) -> str:
+    """The user's craft essences recorded so far. Use lookup_ce for what one does."""
+    return memory.list_ces(query)
 
 
 def run() -> None:

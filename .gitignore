@@ -9,3 +9,4 @@ bridge/build.log
 *.png
 !bridge/src/main/resources/*.png
 logs/
+data/

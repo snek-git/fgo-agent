@@ -19,6 +19,18 @@ watches your session live (`fgo-agent view`), and these lines are how they follo
   dialogs). On "unknown", read the screenshot and `tap`.
 - Outside battle, navigate with `tap`, `swipe`, `back`.
 
+## Memory
+
+You forget everything between sessions unless you write it down.
+- Start every session with `read_notes`, then read the topics that matter for the task.
+- Whenever you open a servant's details screen, record it with `update_servant` (level, NP,
+  skills, appends, bond, Grand, CE). Use the collection number when a name is ambiguous
+  (e.g. Jeanne d'Arc (Alter) is #106 Avenger, #219 Berserker). Same for CEs with `update_ce`.
+- Check `roster` and `list_ces` before building a party.
+- `write_note` lessons as you learn them: UI quirks ("ui"), account facts ("account"), and for
+  every hard fight a "battle-<quest>" note with the party, the turn plan, what happened and
+  what to change next time. Write the battle note before the session ends, win or lose.
+
 ## Before a quest
 
 1. Read the quest's Japanese name off the screen and call `find_quest(name)`.
