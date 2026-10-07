@@ -43,7 +43,8 @@ class Device:
         self.shell("input keyevent KEYCODE_BACK")
 
     def launch_fgo(self) -> None:
-        self.shell(f"monkey -p {FGO_PACKAGE} -c android.intent.category.LAUNCHER 1")
+        # monkey fails on this image; start the activity directly, as scripts/emu.sh does
+        self.shell(f"am start -n {FGO_PACKAGE}/jp.delightworks.Fgo.player.AndroidPlugin")
 
     def fgo_running(self) -> bool:
         return bool(self.shell(f"pidof {FGO_PACKAGE} || true").strip())
