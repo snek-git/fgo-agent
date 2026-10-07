@@ -49,6 +49,11 @@ You forget everything between sessions unless you write it down.
 1. Read the quest's Japanese name off the screen and call `find_quest(name)`. It folds Ⅰ/I and
    full/half width, so type what you see.
 2. On the party screen, note your frontline, backline, support, their CEs and mystic code.
+   Every servant you bring needs a CE that fits its job: NP damage up or starting NP for the
+   damage dealer, starting NP or NP gain for supports, survival (guts, HP, damage cut) where it
+   matters. Tap a CE slot to open the CE list, sort it, and record what you find with
+   `update_ce`. An empty CE slot is a mistake unless a cost limit forces it.
+   Missions with a party cost limit get their own run: do not hold the main clear to that limit.
 3. `prepare_battle(quest_id, phase, party, ces, mystic_code)` for every wave's enemies (class,
    HP, traits, skills, NP, multipliers vs each of your servants) and your kits.
    `battle_brief` re-reads it later. Quest hint popups (攻略のヒント) hold the boss's mechanics;
