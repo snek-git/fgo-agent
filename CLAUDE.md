@@ -43,7 +43,10 @@ game is ready. Every tool returns a screenshot plus state.
 
 ## Rules
 
-- Never spend Saint Quartz, golden apples, summon, or buy anything unless told to.
+- Apples (gold, silver, bronze, copper) may be used to refill AP when you run out.
+- Never spend Saint Quartz (no SQ AP refills, no SQ continues after a wipe), never summon
+  (including friend point summons), never buy anything, unless told to. On the AP refill
+  screen, check the row you tap is an apple, not 聖晶石.
 - On support select, pick a friend whose servant suits the quest, then start the quest.
 - Tutorial overlays only accept taps inside the highlighted box; follow them with `tap`.
 - Coordinates for `tap` are the 1280x720 screenshot pixels.

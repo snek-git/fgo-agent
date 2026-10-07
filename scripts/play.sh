@@ -11,9 +11,9 @@ log="logs/play-$(date +%Y%m%d-%H%M%S).jsonl"
 prompt="$goal
 
 You are on your own: nobody will answer questions. Follow CLAUDE.md. Stop and say why when
-the game needs something only the user should decide (spending Saint Quartz or apples,
-summoning, purchases, accepting terms, account or transfer screens), when AP runs out, or
-when you have been stuck on the same screen for a while. End with a short report of what you
+the game needs something only the user should decide (spending Saint Quartz, summoning,
+purchases, accepting terms, account or transfer screens), when AP and apples both run out,
+or when you have been stuck on the same screen for a while. Apples are fine to use. End with a short report of what you
 cleared and anything that went wrong with the tools."
 
 echo "logging to $log"

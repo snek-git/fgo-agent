@@ -22,7 +22,8 @@ bond and wave transitions, and returns when you have a decision to make.
 In battle, act with FGA's skill notation (`act`), then `open_cards` and `play_cards`.
 Before a quest, read its Japanese name off the screen, call `find_quest`, then `prepare_battle`
 so you know every wave's enemies and your own kit.
-Never spend Saint Quartz, buy anything, or summon unless the user told you to."""
+Apples may be used to refill AP. Never spend Saint Quartz (聖晶石), summon, or buy anything
+unless the user told you to."""
 
 mcp = MCPServer("fgo", instructions=INSTRUCTIONS)
 _device: Device | None = None
