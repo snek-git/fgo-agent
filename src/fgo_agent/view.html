@@ -25,6 +25,11 @@
          margin-right: 6px; vertical-align: middle; }
   .dot.live { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
   .state { color: var(--accent); }
+  .sound { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .sound button { background: var(--panel); color: var(--text); border: 1px solid var(--line);
+                  border-radius: 6px; padding: 3px 10px; font: inherit; cursor: pointer; }
+  .sound button.on { border-color: var(--ok); color: var(--ok); }
+  .sound input { width: 90px; accent-color: var(--ok); }
   #feed { display: flex; flex-direction: column; gap: 6px; }
   .ev { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
   .ev .t { color: var(--muted); font-size: 11px; margin-right: 8px; font-variant-numeric: tabular-nums; }
@@ -68,6 +73,10 @@
     <span>actions <b id="count">0</b></span>
     <span>cost <b id="cost">$0</b></span>
     <span>session <b id="session">none</b></span>
+    <span class="sound">
+      <button id="sound" type="button">sound off</button>
+      <input id="volume" type="range" min="0" max="1" step="0.05" value="0.8" aria-label="volume">
+    </span>
   </div>
   </div>
   <div id="feed"></div>
@@ -194,6 +203,27 @@
     };
   }
   connect();
+
+  // Sound: the stream only runs on the server while someone is listening
+  const soundButton = document.getElementById("sound");
+  const volume = document.getElementById("volume");
+  const player = new Audio();
+  player.volume = Number(volume.value);
+  volume.addEventListener("input", () => player.volume = Number(volume.value));
+  soundButton.addEventListener("click", () => {
+    if (player.src) {
+      player.pause();
+      player.removeAttribute("src");
+      player.load();
+      soundButton.textContent = "sound off";
+      soundButton.classList.remove("on");
+    } else {
+      player.src = "/audio.mp3?t=" + Date.now();
+      player.play();
+      soundButton.textContent = "sound on";
+      soundButton.classList.add("on");
+    }
+  });
 
   const zoom = document.getElementById("zoom");
   feed.addEventListener("click", (e) => {

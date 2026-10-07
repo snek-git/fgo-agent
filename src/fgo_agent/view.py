@@ -6,9 +6,8 @@ by both interactive and headless runs), so it works however the session was star
 
 import asyncio
 import json
+import queue
 import re
-import threading
-import time
 from pathlib import Path
 
 import uvicorn
@@ -17,64 +16,46 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, StreamingResponse
 from starlette.routing import Route
 
-from .device import Device, encode_jpeg
+from . import stream
+
 
 PROJECT = Path(__file__).resolve().parents[2]
 TRANSCRIPTS = Path.home() / ".claude" / "projects" / re.sub(r"[^A-Za-z0-9]", "-", str(PROJECT))
-FPS = 5
 HISTORY = 200  # events replayed to a page that connects mid-session
 
-
-class Screen:
-    """One capture loop shared by every viewer; it only runs while someone is watching."""
-
-    def __init__(self) -> None:
-        self.frame: bytes | None = None
-        self.viewers = 0
-        self.lock = threading.Lock()
-        self.thread: threading.Thread | None = None
-
-    def _loop(self) -> None:
-        device = Device()
-        while self.viewers > 0:
-            start = time.monotonic()
-            try:
-                self.frame = encode_jpeg(device.screenshot(), quality=70)
-            except Exception:
-                time.sleep(1)  # container restarting or adb hiccup; keep trying
-            time.sleep(max(0.0, 1 / FPS - (time.monotonic() - start)))
-        self.thread = None
-
-    def join(self) -> None:
-        with self.lock:
-            self.viewers += 1
-            if self.thread is None:
-                self.thread = threading.Thread(target=self._loop, daemon=True)
-                self.thread.start()
-
-    def leave(self) -> None:
-        with self.lock:
-            self.viewers -= 1
-
-
-screen = Screen()
+video = stream.Video()
+audio = stream.Audio()
 
 
 async def mjpeg(request: Request) -> StreamingResponse:
     async def frames():
-        screen.join()
+        video.join()
         try:
-            last = None
+            seen = -1
             while not await request.is_disconnected():
-                frame = screen.frame
-                if frame is not None and frame is not last:
-                    last = frame
-                    yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + frame + b"\r\n"
-                await asyncio.sleep(1 / (FPS * 2))
+                if video.seq != seen and video.frame is not None:
+                    seen = video.seq
+                    yield b"--frame\r\nContent-Type: image/jpeg\r\n\r\n" + video.frame + b"\r\n"
+                await asyncio.sleep(1 / 120)
         finally:
-            screen.leave()
+            video.leave()
 
     return StreamingResponse(frames(), media_type="multipart/x-mixed-replace; boundary=frame")
+
+
+async def mp3(request: Request) -> StreamingResponse:
+    async def chunks():
+        q = audio.subscribe()
+        try:
+            while not await request.is_disconnected():
+                try:
+                    yield await asyncio.to_thread(q.get, True, 1.0)
+                except queue.Empty:
+                    continue
+        finally:
+            audio.unsubscribe(q)
+
+    return StreamingResponse(chunks(), media_type="audio/mpeg", headers={"Cache-Control": "no-cache"})
 
 
 def _tool_name(name: str) -> str:
@@ -171,7 +152,8 @@ async def page(_: Request) -> HTMLResponse:
     return HTMLResponse((Path(__file__).parent / "view.html").read_text())
 
 
-app = Starlette(routes=[Route("/", page), Route("/screen.mjpg", mjpeg), Route("/feed", feed)])
+app = Starlette(routes=[Route("/", page), Route("/screen.mjpg", mjpeg), Route("/audio.mp3", mp3),
+                        Route("/feed", feed)])
 
 
 def run(host: str, port: int) -> None:
