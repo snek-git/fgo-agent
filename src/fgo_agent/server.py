@@ -14,7 +14,7 @@ import numpy as np
 
 from mcp.server.mcpserver import Image, MCPServer
 
-from . import atlas, memory
+from . import account, atlas, memory
 from .bridge import Bridge
 from .device import Device, encode_jpeg
 
@@ -29,10 +29,11 @@ Before a quest, read its Japanese name off the screen, call `find_quest`, then `
 so you know every wave's enemies and your own kit.
 Set your goal with `set_goal` at the start; it is echoed in every result. Before spending
 skills on a bar, check `estimate_np_damage`: use only what the bar needs.
-You keep memory between sessions: start every session with `read_notes`, and check `roster`
-and `list_ces` before building a party. Record what you learn as you go: every one of the
-user's servants and CEs you see, with every field the screen shows (`update_servant`,
-`update_ce`), and lessons, UI quirks and battle results in notes (`write_note`).
+You keep memory between sessions: start every session with `read_notes`. `roster`, `list_ces`,
+`inventory` and `account_summary` hold the user's account as synced from the game; when a
+fight needs a mechanic (NP seal, charge drain, buff removal, taunt), `find_owned` lists which
+of the user's servants have it. Record lessons, UI quirks and battle results in notes
+(`write_note`), and NP versions or anything newer than the sync with `update_servant`.
 Apples may be used to refill AP. Never spend Saint Quartz (聖晶石), summon, or buy anything
 unless the user told you to. Command spells (令呪) are a last resort: plan to win without them.
 A clear that needed command spells is not a success; say so in your report and battle note."""
@@ -415,9 +416,33 @@ def update_servant(
 
 @mcp.tool()
 def roster(query: str | None = None, class_name: str | None = None) -> str:
-    """The user's servants recorded so far, with levels, NP, skills, appends and bond. Filter by
-    a name fragment or a class (saber, archer, ..., shielder, ruler, avenger, moonCancer, ...)."""
+    """The user's servants (synced from the game), with level, NP, skills, appends, ascension,
+    grails, Fou, bond and Grand. Filter by a name fragment or a class (saber, archer, ...,
+    shielder, ruler, avenger, moonCancer, ...)."""
     return memory.roster(query, class_name)
+
+
+@mcp.tool()
+def find_owned(effect: str, target: str | None = None, class_name: str | None = None) -> str:
+    """Which of the user's servants can do something: searches every owned servant's skills
+    and NP for an effect, e.g. "NP Seal", "Drain enemy charge", "Remove effects", "Ignore
+    Invincible", "Taunt", "Charge NP", "Anti-Purge". `target` narrows by who it hits ("enemies",
+    "all allies", "self"); `class_name` by class. Use it when building a party for a mechanic."""
+    return account.find_owned(effect, target, class_name)
+
+
+@mcp.tool()
+def account_summary() -> str:
+    """The user's account from the last sync: master level, AP max, cost cap, QP, Saint Quartz
+    (never spend), when command spells come back, mystic codes with levels."""
+    return account.summary()
+
+
+@mcp.tool()
+def inventory(item: str | None = None) -> str:
+    """Item counts from the last sync. With a name (English or Japanese, part is enough):
+    that item. Without: every material used for ascension and skills, plus apples."""
+    return account.inventory(item)
 
 
 @mcp.tool()
@@ -505,7 +530,7 @@ def run() -> None:
 def run_planner() -> None:
     """The planner's MCP server: the same functions, read-only ones only."""
     planner = MCPServer("fgo-plan", instructions="Read-only tools for planning FGO battles. You cannot act in the game.")
-    for tool in (look, zoom, battle_brief, prepare_battle, find_quest, roster, list_ces, read_notes,
+    for tool in (look, zoom, battle_brief, prepare_battle, find_quest, roster, find_owned, account_summary, inventory, list_ces, read_notes,
                  lookup_servant, lookup_ce, lookup_mystic_code, lookup_command_code, estimate_np_damage):
         planner.tool()(tool)
     planner.run("stdio")

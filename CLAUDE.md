@@ -60,7 +60,11 @@ You forget everything between sessions unless you write it down.
    read them fully.
 4. Skills and NPs can have several versions (rank-ups, story unlocks). Match the name in the
    game's skill dialog against the brief to know which one you have.
-5. `lookup_servant`, `lookup_ce`, `lookup_mystic_code`, `lookup_command_code` for anything else.
+5. When the boss has a mechanic to answer (an NP that wipes, evade, buffs to strip, a gauge to
+   drain), `find_owned` lists the user's servants with that effect ("NP Seal", "Drain enemy
+   charge", "Remove effects", "Ignore Invincible", "Taunt"), with their levels.
+   `account_summary` has mystic codes and when command spells recover; `inventory` has items.
+6. `lookup_servant`, `lookup_ce`, `lookup_mystic_code`, `lookup_command_code` for anything else.
 
 ## Planning damage
 

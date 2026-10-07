@@ -80,6 +80,11 @@ def command_codes() -> list[dict]:
 
 
 @cache
+def items() -> list[dict]:
+    return _cached("nice_item_lang_en.json", f"{API}/export/JP/nice_item_lang_en.json", EXPORT_MAX_AGE)
+
+
+@cache
 def class_relation() -> dict:
     return _cached("NiceClassRelation.json", f"{API}/export/JP/NiceClassRelation.json", EXPORT_MAX_AGE)
 
