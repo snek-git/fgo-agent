@@ -33,8 +33,14 @@ scrcpy -s 127.0.0.1:5555 --audio-codec=aac   # watch or play by hand (no opus en
 
 ## Play
 
-Run `claude` in this directory. `.mcp.json` registers the `fgo` server and `CLAUDE.md` is the
-playbook. Then: "continue the Fuyuki story".
+```sh
+scripts/play.sh "clear today's daily quests"      # live in your terminal, Esc to interrupt
+scripts/play.sh -b "farm bones until AP is gone"  # headless, logs to logs/
+uv run fgo-agent watch                            # follow the latest headless log
+```
+
+Either way the session gets only the `fgo` tools (no shell, files or web). `CLAUDE.md` is the
+playbook.
 
 ## Debug
 

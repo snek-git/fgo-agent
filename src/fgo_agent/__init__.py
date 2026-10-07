@@ -13,7 +13,15 @@ def main() -> None:
     shot = sub.add_parser("shot", help="save a screenshot")
     shot.add_argument("path", nargs="?", default="screen.png")
     sub.add_parser("bench", help="time FGA's screen detection through the bridge")
+    watch = sub.add_parser("watch", help="follow a headless play log live (latest by default)")
+    watch.add_argument("log", nargs="?")
     args = parser.parse_args()
+
+    if args.cmd == "watch":
+        from .watch import main as watch_main
+
+        watch_main([args.log] if args.log else [])
+        return
 
     if args.cmd == "serve":
         from .server import run
