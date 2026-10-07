@@ -202,15 +202,17 @@ def lookup_command_code(query: str) -> str:
 def find_quest(name: str) -> str:
     """Find quests by their Japanese name as shown in game (partial names work).
     Returns ids and phases to pass to `prepare_battle`."""
-    rows = atlas.search_quests(name)
-    if not rows:
+    quests = atlas.search_quests(name)
+    if not quests:
         return f"no quest matches {name!r}"
-    quests: dict[int, dict] = {}
-    for r in rows:
-        quests.setdefault(r["id"], {**r, "phases": []})["phases"].append(r["phase"])
-    return "\n".join(
-        f"id {q['id']} phases {q['phases']}: {q['name'].replace(chr(10), ' ')} | {q.get('spotName', '')} | AP {q.get('consume', '?')}"
-        for q in list(quests.values())[:25]
+    note = ""
+    if quests[0].get("fuzzy"):
+        note = (f"Nothing contains {name!r}; these are only similar names. Check one matches the "
+                "screen before using it.\n")
+    return note + "\n".join(
+        f"id {q['id']} phases {q['phases']} (enemy data: {q['phasesWithEnemies'] or 'none'}): "
+        f"{q['originalName']} / {q['name']} | {q['war']} | {q['spot']} | AP {q['consume']}"
+        for q in quests
     )
 
 

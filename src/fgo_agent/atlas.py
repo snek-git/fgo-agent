@@ -8,6 +8,7 @@ import difflib
 import json
 import re
 import time
+import unicodedata
 import urllib.parse
 import urllib.request
 from functools import cache
@@ -100,10 +101,41 @@ def noble_phantasm(np_id: int) -> dict:
     return _cached(f"np_{np_id}.json", f"{API}/nice/JP/NP/{np_id}?lang=en")
 
 
-def search_quests(name: str) -> list[dict]:
-    """Search by the quest's Japanese name as shown in game (partial match works)."""
-    url = f"{API}/basic/JP/quest/phase/search?lang=en&name={urllib.parse.quote(name)}"
-    return json.loads(_get(url))
+def _norm(text: str) -> str:
+    """Fold the variants the game and a reader mix up: Ⅰ/I, full-width/half-width, case, spaces."""
+    return re.sub(r"\s+", "", unicodedata.normalize("NFKC", text)).casefold()
+
+
+@cache
+def quest_index() -> list[dict]:
+    """Every quest in every war. Atlas's phase search skips many event quests, this doesn't."""
+    wars = _cached("nice_war_lang_en.json", f"{API}/export/JP/nice_war_lang_en.json", EXPORT_MAX_AGE)
+    index = []
+    for war in wars:
+        war_name = war.get("originalLongName") or war.get("originalName") or ""
+        for spot in war["spots"]:
+            for q in spot["quests"]:
+                names = [q["name"], q.get("originalName", ""), f"{war_name} {q.get('originalName', '')}"]
+                index.append({
+                    "id": q["id"], "name": q["name"].replace("\n", " "), "originalName": q.get("originalName", ""),
+                    "war": war.get("longName", "").replace("\n", " "), "spot": q.get("spotName", ""),
+                    "consume": q.get("consume"), "phases": q.get("phases", []),
+                    "phasesWithEnemies": q.get("phasesWithEnemies", []),
+                    "keys": [_norm(n) for n in names if n],
+                })
+    return index
+
+
+def search_quests(name: str, limit: int = 25) -> list[dict]:
+    """Find quests by the name shown in game. Partial names and Ⅰ/I-style variants match;
+    falls back to fuzzy matching when nothing contains the query."""
+    query = _norm(name)
+    hits = [q for q in quest_index() if any(query in key for key in q["keys"])]
+    if not hits:
+        scored = [(max(difflib.SequenceMatcher(None, query, key).ratio() for key in q["keys"]), q)
+                  for q in quest_index()]
+        hits = [{**q, "fuzzy": True} for score, q in sorted(scored, key=lambda s: -s[0]) if score >= 0.6]
+    return hits[:limit]
 
 
 # --- finding things by name ---
@@ -378,7 +410,11 @@ def describe_enemy(enemy: dict, party: list[dict]) -> str:
             deal = _multiplier(cls, s["className"], svt["className"]) * _multiplier(att, s["attribute"], svt["attribute"])
             take = _multiplier(cls, svt["className"], s["className"]) * _multiplier(att, svt["attribute"], s["attribute"])
             vs.append(f"{s['name']} deals x{_num(round(deal, 2))} takes x{_num(round(take, 2))}")
-        lines.append("    vs party: " + "; ".join(vs))
+        if svt["className"] not in cls:
+            lines.append(f"    vs party: unknown, class {svt['className']} is not in Atlas's class table "
+                         "(special enemy class; check the in-game class icon and quest hints)")
+        else:
+            lines.append("    vs party: " + "; ".join(vs))
     return "\n".join(lines)
 
 
