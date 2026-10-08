@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Shapes
+import QtWebEngine
 
 // Styled after FGO's own JP menus, like the web board: light sky-blue screens, a pale band with
 // a white back button on the left and the screen title on the right, a dark strip of blue square
@@ -38,7 +39,8 @@ ApplicationWindow {
         {label: "Ascension & Skills", title: "Ascension", en: "ASCENSION & SKILLS"},
         {label: "Story", title: "Story", en: "MAIN & FREE QUESTS"},
         {label: "Farming", title: "Farming", en: "3-TURN PLANS"},
-        {label: "Orders", title: "Orders", en: "AGENT ORDERS"}]
+        {label: "Orders", title: "Orders", en: "AGENT ORDERS"},
+        {label: "Live", title: "Live", en: "GAME SCREEN"}]
 
     palette.base: "#ffffff"; palette.text: ink; palette.window: "#eef6ff"; palette.windowText: ink
     palette.button: "#dbe8f5"; palette.buttonText: ink; palette.mid: "#b9dcf7"; palette.light: "#ffffff"
@@ -98,7 +100,7 @@ ApplicationWindow {
     function tabCount(i) {
         if (!board) return 0
         return [board.quests.open.length, board.upgrades.servants.filter(function (s) { return !s.can_do }).length,
-                board.story.reduce(function (n, w) { return n + w.main.length + w.free.length }, 0), board.farms.length, activeOrders()][i]
+                board.story.reduce(function (n, w) { return n + w.main.length + w.free.length }, 0), board.farms.length, activeOrders(), 0][i]
     }
 
     Component.onCompleted: {
@@ -240,7 +242,7 @@ ApplicationWindow {
                     Row { id: backRow; anchors.centerIn: parent; spacing: 12
                         Rectangle { width: 13; height: 13; rotation: 45; color: "#2b3f63"; border.color: "white"; border.width: 2; anchors.verticalCenter: parent.verticalCenter }
                         Text { text: "Live"; color: ink; font.family: sans; font.weight: Font.Black; font.pixelSize: 16 } }
-                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: Qt.openUrlExternally(apiBase + "/") }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: tab = 5 }
                 }
                 Row { spacing: 6
                     Text { text: "Lv."; color: ink2; font.family: sans; font.bold: true; anchors.baseline: lvNum.baseline }
@@ -453,6 +455,13 @@ ApplicationWindow {
                             api("POST", "/api/queue", {kind: "custom", title: custom.text.trim().slice(0, 80), payload: {text: custom.text.trim()}, apples: customApples.value},
                                 function () { custom.text = ""; loadQueue() }) } } } }
             }
+        }
+        WebEngineView {
+            id: liveView
+            property bool opened: false
+            url: opened ? apiBase + "/live?embed=1" : "about:blank"
+            backgroundColor: "transparent"
+            Connections { target: win; function onTabChanged() { if (tab === 5) liveView.opened = true } }
         }
     }
 

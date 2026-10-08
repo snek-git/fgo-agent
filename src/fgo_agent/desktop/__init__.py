@@ -52,8 +52,10 @@ def ensure_server(port: int) -> str | None:
 def main(port: int = PORT) -> None:
     from PySide6.QtGui import QGuiApplication, QIcon
     from PySide6.QtQml import QQmlApplicationEngine
+    from PySide6.QtWebEngineQuick import QtWebEngineQuick
 
     os.environ.setdefault("QT_QUICK_CONTROLS_STYLE", "Basic")
+    QtWebEngineQuick.initialize()  # the Live tab embeds the web Live page; must run before the app exists
     app = QGuiApplication(sys.argv)
     app.setApplicationName("Chaldea Terminal")
     app.setDesktopFileName("chaldea-terminal")

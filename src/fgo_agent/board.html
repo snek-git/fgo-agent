@@ -167,7 +167,7 @@
 <body>
 <header>
   <div class="band">
-    <a class="back" href="/">Live</a>
+    <a class="back" href="#" id="liveBtn">Live</a>
     <div class="master" id="master"></div>
     <div class="res" id="res"></div>
     <span class="synced" id="synced"></span>
@@ -180,6 +180,7 @@
     <button data-tab="story" data-title="Story" data-en="Main &amp; Free Quests">Story <span class="count" id="c-story"></span></button>
     <button data-tab="farming" data-title="Farming" data-en="3-Turn Plans">Farming <span class="count" id="c-farming"></span></button>
     <button data-tab="queue" data-title="Orders" data-en="Agent Orders">Orders <span class="count" id="c-queue"></span></button>
+    <button data-tab="live" data-title="Live" data-en="Game Screen">Live</button>
   </nav>
 </header>
 
@@ -207,6 +208,8 @@
     <div class="panel"><div class="head">Farming plans <span class="en">Saved</span></div>
       <div class="body"><p class="note">Found by the agent's exploratory runs, aiming for 3 turns. FGA then farms with them.</p><div id="farms"></div></div></div>
   </section>
+
+  <section id="live"><iframe id="liveFrame" title="Live game" style="width:100%;border:0;display:block;height:calc(100vh - 150px);min-height:420px"></iframe></section>
 
   <section id="queue">
     <div class="panel"><div class="head">Orders <span class="en">For the agent</span></div>
@@ -373,6 +376,7 @@ document.addEventListener("click", async (e) => {
       document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b === el));
       document.querySelectorAll("section").forEach((s) => s.classList.toggle("on", s.id === el.dataset.tab));
       $("title").textContent = el.dataset.title; $("titleEn").innerHTML = el.dataset.en;
+      if (el.dataset.tab === "live" && !$("liveFrame").src) $("liveFrame").src = "/live?embed=1";
     } else if (el.dataset.f) {
       filter = el.dataset.f; document.querySelectorAll("#qfilters button").forEach((b) => b.classList.toggle("light", b !== el)); renderQuests();
     } else if (el.dataset.q) {
@@ -393,6 +397,7 @@ document.addEventListener("click", async (e) => {
   } catch (err) { toast(err.message); }
 });
 
+$("liveBtn").onclick = (e) => { e.preventDefault(); document.querySelector('[data-tab=live]').click(); };
 $("barClear").onclick = () => { selected.clear(); renderQuests(); renderBar(); };
 $("barSend").onclick = async () => {
   const qs = [...selected.values()];

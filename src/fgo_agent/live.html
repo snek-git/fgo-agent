@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chaldea Terminal · Live</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  /* The game screen, playable: click = tap, drag = swipe, hold = long press, Esc = back.
+     Same look as the board (FGO's light menus). ?embed=1 drops the page background for the board's tab. */
+  :root { --ink: #10213f; --ink2: #2a4472; --muted: #5d7398; --rim: #7ec2f2; }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); font: 14px/1.45 "Noto Sans JP", system-ui, sans-serif; min-height: 100vh;
+         background: repeating-linear-gradient(45deg, rgba(255,255,255,.12) 0 1px, transparent 1px 34px),
+                     repeating-linear-gradient(-45deg, rgba(255,255,255,.12) 0 1px, transparent 1px 34px),
+                     linear-gradient(180deg, #bfe3ff 0%, #8ccaf6 40%, #5eaee9 100%); background-attachment: fixed; }
+  body.embed { background: transparent; min-height: 0; overflow: hidden; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 16px; }
+  body.embed .wrap { padding: 0; }
+  .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .state { padding: 3px 12px; border-radius: 12px; font-weight: 700; font-size: 12px; color: #fff; background: #7d93b5; }
+  .state.on { background: #2f9a58; } .state.view { background: #d9822b; }
+  .hint { color: var(--muted); font-size: 12px; margin-left: auto; }
+  button { font: 700 13px "Noto Sans JP", sans-serif; cursor: pointer; white-space: nowrap; padding: 5px 12px; border-radius: 4px;
+           color: #fff; background: linear-gradient(180deg, #4aa8f0, #1f72c8); border: 1px solid #bfe3ff; box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 1px 2px rgba(0,0,0,.25); }
+  button.light { color: var(--ink); background: linear-gradient(180deg, #ffffff, #dbe8f5); border-color: #7e9cc4; }
+  button.go { padding: 8px 26px; border-radius: 999px; color: var(--ink); background: linear-gradient(180deg, #ffffff, #e6eef6);
+              border: 3px solid #2a8be0; box-shadow: 0 0 0 2px #fff, 0 0 0 3px #7ec2f2, 0 3px 6px rgba(0,0,0,.25); font-size: 15px; font-weight: 900; }
+  button:disabled { filter: grayscale(.8) opacity(.5); cursor: default; }
+  .screen { position: relative; aspect-ratio: 16 / 9; width: min(100%, calc((100vh - 64px) * 16 / 9)); margin: 0 auto; border-radius: 6px; overflow: hidden; background: #0b1730;
+            border: 2px solid #fff; box-shadow: 0 0 0 1px var(--rim), 0 6px 16px rgba(10, 40, 90, .3); touch-action: none; user-select: none; }
+  .screen img { width: 100%; height: 100%; display: block; object-fit: contain; -webkit-user-drag: none; }
+  .screen.play { cursor: crosshair; }
+  .off { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: #dbe9ff; background: linear-gradient(180deg, #16305f, #0b1730); }
+  .off h2 { margin: 0 0 12px; font-weight: 900; }
+  .ripple { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; border: 2px solid #fff; pointer-events: none;
+            box-shadow: 0 0 8px #59b4ff; animation: ripple .45s ease-out forwards; }
+  @keyframes ripple { to { transform: scale(2.2); opacity: 0; } }
+  .toast { position: fixed; right: 16px; bottom: 16px; background: #fff; color: var(--ink); border: 1px solid var(--rim); padding: 10px 14px; border-radius: 6px; display: none; box-shadow: 0 4px 14px rgba(10, 40, 90, .3); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar">
+    <span class="state" id="state">checking</span>
+    <button class="light" id="startBtn">Start game</button>
+    <button class="light" id="stopBtn">Stop game</button>
+    <button id="backBtn" title="Android back (Esc)">◀ Back</button>
+    <button class="light" id="soundBtn">🔇 Sound off</button>
+    <button class="light" id="windowBtn" title="scrcpy window: no lag, for real-time play">Open game window</button>
+    <span class="hint" id="hint">click = tap · drag = swipe · hold = long press · Esc = back</span>
+  </div>
+  <div class="screen" id="screen">
+    <img id="img" alt="">
+    <div class="off" id="off"><div><h2>The game is off</h2><button class="go" id="startBig">Start game</button></div></div>
+  </div>
+</div>
+<audio id="audio" preload="none"></audio>
+<div class="toast" id="toast"></div>
+<script>
+const $ = (id) => document.getElementById(id);
+if (new URLSearchParams(location.search).get("embed")) document.body.classList.add("embed");
+let running = false, busy = null, streaming = false;
+
+function toast(t) { const el = $("toast"); el.textContent = t; el.style.display = "block"; clearTimeout(el._h); el._h = setTimeout(() => el.style.display = "none", 3500); }
+async function call(url, body) {
+  const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body || {})});
+  const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j;
+}
+
+function render() {
+  $("state").className = "state " + (!running ? "" : busy ? "view" : "on");
+  $("state").textContent = !running ? "Game off" : busy ? "View only: " + busy : "Playable";
+  $("off").style.display = running ? "none" : "grid";
+  $("screen").classList.toggle("play", running && !busy);
+  $("startBtn").disabled = running; $("stopBtn").disabled = !running || !!busy; $("backBtn").disabled = !running || !!busy;
+  $("windowBtn").disabled = !!busy;
+  if (running && !streaming) { $("img").src = "/screen.mjpg?t=" + Date.now(); streaming = true; }
+  if (!running && streaming) { $("img").removeAttribute("src"); streaming = false; }
+}
+async function poll() {
+  try { const s = await (await fetch("/api/game")).json(); running = s.running; busy = s.busy; render(); } catch (e) {}
+}
+
+async function start() {
+  $("startBtn").disabled = $("startBig").disabled = true; toast("starting the emulator and FGO (about 30 seconds)");
+  try { const s = await call("/api/game", {action: "up"}); running = s.running; busy = s.busy; render(); }
+  catch (e) { toast(e.message); } finally { $("startBig").disabled = false; render(); }
+}
+$("startBtn").onclick = start; $("startBig").onclick = start;
+$("stopBtn").onclick = async () => { try { const s = await call("/api/game", {action: "down"}); running = s.running; render(); } catch (e) { toast(e.message); } };
+$("backBtn").onclick = () => call("/api/control", {type: "back"}).catch((e) => toast(e.message));
+$("windowBtn").onclick = () => call("/api/game/window").then(() => toast("opening the game window")).catch((e) => toast(e.message));
+$("soundBtn").onclick = () => {
+  const a = $("audio");
+  if (a.paused) { a.src = "/audio.mp3?t=" + Date.now(); a.play().catch((e) => toast("sound: " + e.message)); $("soundBtn").textContent = "🔊 Sound on"; }
+  else { a.pause(); a.removeAttribute("src"); a.load(); $("soundBtn").textContent = "🔇 Sound off"; }
+};
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && running && !busy) call("/api/control", {type: "back"}).catch((err) => toast(err.message)); });
+
+// Pointer → tap / swipe / long press, as fractions of the game picture (letterboxing removed)
+const scr = $("screen");
+function frac(e) {
+  const r = $("img").getBoundingClientRect(), ratio = 16 / 9;
+  let w = r.width, h = r.width / ratio; if (h > r.height) { h = r.height; w = h * ratio; }
+  const x0 = r.left + (r.width - w) / 2, y0 = r.top + (r.height - h) / 2;
+  return {x: (e.clientX - x0) / w, y: (e.clientY - y0) / h, px: e.clientX - scr.getBoundingClientRect().left, py: e.clientY - scr.getBoundingClientRect().top};
+}
+let down = null;
+scr.addEventListener("pointerdown", (e) => { if (!running || busy) return; scr.setPointerCapture(e.pointerId); down = {...frac(e), t: performance.now()}; });
+scr.addEventListener("pointerup", (e) => {
+  if (!down) return;
+  const up = frac(e), ms = Math.round(performance.now() - down.t), moved = Math.hypot(up.x - down.x, (up.y - down.y) * 9 / 16) > 0.015;
+  const inside = (p) => p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1;
+  if (inside(down)) {
+    const ring = document.createElement("div"); ring.className = "ripple"; ring.style.left = down.px + "px"; ring.style.top = down.py + "px"; scr.appendChild(ring); setTimeout(() => ring.remove(), 500);
+    const body = !moved && ms < 500 ? {type: "tap", x: down.x, y: down.y}
+               : {type: "swipe", x1: down.x, y1: down.y, x2: moved ? up.x : down.x, y2: moved ? up.y : down.y, ms: Math.min(Math.max(ms, 120), 3000)};
+    call("/api/control", body).catch((err) => toast(err.message));
+  }
+  down = null;
+});
+
+poll(); setInterval(poll, 3000);
+</script>
+</body>
+</html>

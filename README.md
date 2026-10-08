@@ -57,6 +57,12 @@ Select quests or press Farm / Send the agent, then Run orders: `fgo-agent runner
 them one at a time as the user service `fgo-agent-queue` (one session per account), then syncs
 the account. Sync re-captures the account on demand.
 
+The Live tab (also /live) shows the game screen and lets you play through it: click is a tap,
+drag a swipe, hold a long press, Esc is back. It starts and stops the emulator with the game,
+and goes view-only while an agent or the order queue is playing. For real-time play without the
+stream's lag, "Open game window" opens the scrcpy window. The desktop app (`fgo-agent app`, or
+"Chaldea Terminal" in the app launcher after `app/install.sh`) shows the same board and Live tab.
+
 ## Account sync
 
 ```sh
