@@ -96,7 +96,7 @@ private fun handle(flow: Flow, request: JsonObject): JsonObject = buildJsonObjec
  * map (a quest whose last clear has no Repeat, a withdraw), or on a screen none of FGA's checks
  * know for STUCK_SECONDS. FGA would otherwise wait there forever, or tap the top quest of a list.
  */
-private const val STUCK_SECONDS = 45
+private const val STUCK_SECONDS = 120  // a turn of NP animations and chains reads as unknown for over a minute
 private const val WATCH_SECONDS = 2
 
 private fun farm(flow: Flow, command: String, out: kotlinx.serialization.json.JsonObjectBuilder) {
