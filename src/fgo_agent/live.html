@@ -97,7 +97,7 @@
     </div>
     <div class="log"><div class="in">
       <div class="head"><span class="dot" id="dot"></span>Agent log
-        <span class="meta"><span>actions <b id="count">0</b></span><span>cost <b id="cost">$0</b></span><span id="session"></span></span></div>
+        <span class="meta"><span>actions <b id="count">0</b></span><span id="costBox" hidden>cost <b id="cost"></b></span><span id="session"></span></span></div>
       <div id="list"><div class="empty">No agent session yet</div></div>
     </div></div>
   </div>
@@ -233,7 +233,7 @@ function show(ev) {
       $("count").textContent = ++actions; break;
     }
     case "result": { const card = calls.get(ev.id); if (card) result(card, ev); break; }
-    case "cost": if (ev.usd != null) $("cost").textContent = "$" + ev.usd.toFixed(2); break;
+    case "cost": if (ev.usd != null) { $("cost").textContent = "$" + ev.usd.toFixed(2); $("costBox").hidden = false; } break;
   }
 }
 (function connect() {
