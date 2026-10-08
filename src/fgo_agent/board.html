@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chaldea Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #070b18; --bg2: #0e1630; --panel: rgba(18, 29, 61, .82); --panel2: rgba(26, 42, 86, .7);
+    --line: rgba(201, 162, 75, .45); --gold: #e3c172; --gold2: #b98a32; --text: #e9ecf5; --dim: #96a3c4;
+    --blue: #59c8ff; --red: #ff6b7a; --green: #6ee7a8; --silver: #c7d2e6; --bronze: #c98a5a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; color: var(--text); font: 14px/1.45 "Noto Sans JP", system-ui, sans-serif; min-height: 100vh;
+    background:
+      radial-gradient(1200px 600px at 80% -10%, rgba(89, 200, 255, .12), transparent 60%),
+      radial-gradient(900px 500px at -10% 110%, rgba(227, 193, 114, .10), transparent 60%),
+      repeating-radial-gradient(circle at 50% 120%, rgba(255,255,255,.025) 0 1px, transparent 1px 46px),
+      linear-gradient(180deg, var(--bg2), var(--bg));
+    background-attachment: fixed;
+  }
+  h1, h2, h3, .cinzel { font-family: Cinzel, serif; letter-spacing: .06em; }
+  a { color: var(--blue); }
+  header {
+    position: sticky; top: 0; z-index: 5; padding: 12px 18px 0;
+    background: linear-gradient(180deg, rgba(7, 11, 24, .97), rgba(7, 11, 24, .85));
+    border-bottom: 1px solid var(--line); backdrop-filter: blur(6px);
+  }
+  .top { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .crest {
+    width: 42px; height: 42px; border-radius: 50%; flex: none;
+    border: 2px solid var(--gold); box-shadow: 0 0 14px rgba(227, 193, 114, .45), inset 0 0 10px rgba(227,193,114,.3);
+    background: conic-gradient(from 0deg, #1a2a56, #0b1330, #1a2a56, #0b1330, #1a2a56);
+    display: grid; place-items: center; color: var(--gold); font: 700 18px Cinzel, serif;
+  }
+  .title h1 { margin: 0; font-size: 20px; color: var(--gold); text-shadow: 0 0 12px rgba(227,193,114,.35); }
+  .title small { color: var(--dim); letter-spacing: .12em; text-transform: uppercase; font-size: 11px; }
+  .res { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; align-items: center; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: 999px;
+    background: var(--panel2); border: 1px solid rgba(201,162,75,.3); font-weight: 500; white-space: nowrap;
+  }
+  .chip img { width: 22px; height: 22px; }
+  .chip.text { padding-left: 10px; }
+  .sync { display: flex; gap: 8px; align-items: center; color: var(--dim); font-size: 12px; }
+  button, .btn {
+    font: 600 12px Cinzel, serif; letter-spacing: .08em; color: #1b1406; cursor: pointer; border: 0;
+    padding: 7px 14px; border-radius: 4px; text-decoration: none;
+    background: linear-gradient(180deg, #f3dc9b, var(--gold) 45%, var(--gold2));
+    box-shadow: 0 0 0 1px #6b4d17, 0 2px 8px rgba(0,0,0,.5);
+  }
+  button.ghost, .btn.ghost { background: transparent; color: var(--gold); box-shadow: 0 0 0 1px var(--line); }
+  button.danger { background: linear-gradient(180deg, #ff9aa5, #d34b5a); color: #2a0509; box-shadow: 0 0 0 1px #6b1720; }
+  button:disabled { filter: grayscale(1) brightness(.6); cursor: default; }
+  nav { display: flex; gap: 2px; margin-top: 10px; overflow-x: auto; }
+  nav button {
+    background: transparent; color: var(--dim); box-shadow: none; border-radius: 6px 6px 0 0; padding: 9px 16px;
+    border: 1px solid transparent; border-bottom: 0; font-size: 13px;
+  }
+  nav button.on { color: var(--gold); background: var(--panel); border-color: var(--line); }
+  nav .count { font: 600 11px "Noto Sans JP"; margin-left: 6px; color: var(--blue); }
+  main { padding: 18px; max-width: 1280px; margin: 0 auto; }
+  section { display: none; }
+  section.on { display: block; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 14px 16px; margin-bottom: 16px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 8px 24px rgba(0,0,0,.35); position: relative;
+  }
+  .panel::before, .panel::after {
+    content: ""; position: absolute; width: 10px; height: 10px; border: 2px solid var(--gold);
+  }
+  .panel::before { top: -2px; left: -2px; border-right: 0; border-bottom: 0; }
+  .panel::after { bottom: -2px; right: -2px; border-left: 0; border-top: 0; }
+  .panel h2 { margin: 0 0 10px; font-size: 15px; color: var(--gold); display: flex; align-items: center; gap: 10px; }
+  .panel h2 .sub { font: 400 12px "Noto Sans JP"; color: var(--dim); letter-spacing: 0; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .filters button { background: var(--panel2); color: var(--dim); box-shadow: 0 0 0 1px rgba(201,162,75,.25); }
+  .filters button.on { color: #1b1406; background: linear-gradient(180deg, #f3dc9b, var(--gold)); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; }
+  .card {
+    display: flex; gap: 10px; align-items: center; padding: 8px; border-radius: 6px;
+    background: linear-gradient(135deg, rgba(31, 52, 104, .7), rgba(14, 22, 48, .8));
+    border: 1px solid rgba(89, 200, 255, .18); cursor: pointer; transition: .15s;
+  }
+  .card:hover { border-color: rgba(227,193,114,.6); }
+  .card.sel { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 0 14px rgba(227,193,114,.35); }
+  .face { position: relative; width: 58px; height: 58px; flex: none; }
+  .face img.f { width: 58px; height: 58px; border-radius: 4px; border: 2px solid var(--gold2); display: block; background: #0a1022; }
+  .face.r3 img.f { border-color: var(--silver); } .face.r1 img.f, .face.r2 img.f { border-color: var(--bronze); }
+  .face img.c { position: absolute; left: -6px; top: -6px; width: 24px; height: 24px; filter: drop-shadow(0 1px 2px #000); }
+  .face .fav { position: absolute; right: -5px; top: -7px; color: var(--gold); font-size: 16px; text-shadow: 0 0 6px #000, 0 0 2px #000; }
+  .info { min-width: 0; flex: 1; }
+  .info .n { font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .info .q { color: var(--gold); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { color: var(--dim); font-size: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .tag { font: 600 10px Cinzel, serif; letter-spacing: .08em; padding: 1px 6px; border-radius: 3px; border: 1px solid; }
+  .tag.interlude { color: #b9a0ff; border-color: #6c53c9; } .tag.strengthening { color: var(--blue); border-color: #2c7bb0; }
+  .tag.ok { color: var(--green); border-color: #2f8a5c; } .tag.no { color: var(--red); border-color: #8a2f3a; }
+  .need { color: var(--red); font-size: 12px; }
+  details summary { cursor: pointer; color: var(--dim); margin: 6px 0; }
+  .mats { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+  .mat { position: relative; width: 44px; text-align: center; font-size: 11px; }
+  .mat img { width: 40px; height: 40px; display: block; margin: 0 auto; }
+  .mat b { display: block; font-weight: 700; }
+  .mat.short b { color: var(--red); } .mat.enough b { color: var(--green); }
+  .row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-top: 1px solid rgba(201,162,75,.15); }
+  .row:first-of-type { border-top: 0; }
+  .lv { font-family: Cinzel, serif; color: var(--dim); font-size: 12px; }
+  .lv b { color: var(--text); } .lv .to { color: var(--gold); }
+  .missing { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; }
+  .miss { display: flex; gap: 8px; align-items: center; background: var(--panel2); border-radius: 6px; padding: 6px 8px; min-width: 0; }
+  .miss > div { min-width: 0; }
+  .miss .nm { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .miss img { width: 36px; height: 36px; }
+  .miss .x { font: 700 16px Cinzel, serif; color: var(--red); }
+  .miss button { margin-left: auto; padding: 4px 8px; font-size: 10px; }
+  .war { display: flex; gap: 12px; align-items: center; }
+  .war img { height: 54px; border-radius: 4px; border: 1px solid var(--line); }
+  .bar {
+    position: sticky; bottom: 0; display: none; gap: 10px; align-items: center; justify-content: flex-end;
+    padding: 10px 18px; background: rgba(7, 11, 24, .95); border-top: 1px solid var(--line); z-index: 4;
+  }
+  .bar.on { display: flex; }
+  input[type=number], input[type=text], textarea {
+    background: #0a1124; color: var(--text); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; font: inherit;
+  }
+  input[type=number] { width: 70px; }
+  textarea { width: 100%; min-height: 60px; }
+  .task { display: flex; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid rgba(201,162,75,.15); }
+  .status { font: 600 11px Cinzel, serif; letter-spacing: .08em; padding: 2px 8px; border-radius: 3px; }
+  .status.queued { color: var(--dim); border: 1px solid var(--dim); }
+  .status.running { color: var(--blue); border: 1px solid var(--blue); animation: glow 1.6s infinite; }
+  .status.done { color: var(--green); border: 1px solid var(--green); }
+  .status.failed, .status.stopped { color: var(--red); border: 1px solid var(--red); }
+  @keyframes glow { 50% { box-shadow: 0 0 10px var(--blue); } }
+  .empty { color: var(--dim); font-style: italic; }
+  .toast { position: fixed; right: 18px; bottom: 70px; background: var(--panel); border: 1px solid var(--gold); padding: 10px 14px; border-radius: 6px; display: none; z-index: 9; }
+  @media (max-width: 640px) { main { padding: 10px; } .grid { grid-template-columns: 1fr; } .res { margin-left: 0; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="top">
+    <div class="crest">C</div>
+    <div class="title"><h1>Chaldea Terminal</h1><small id="master">loading</small></div>
+    <div class="res" id="res"></div>
+    <div class="sync"><span id="synced"></span><button class="ghost" id="syncBtn">Sync</button><a class="btn ghost" href="/">Live</a></div>
+  </div>
+  <nav id="tabs">
+    <button data-tab="quests" class="on">Interludes &amp; Strengthening<span class="count" id="c-quests"></span></button>
+    <button data-tab="upgrades">Ascension &amp; Skills<span class="count" id="c-upgrades"></span></button>
+    <button data-tab="story">Story &amp; Free Quests<span class="count" id="c-story"></span></button>
+    <button data-tab="farming">Farming<span class="count" id="c-farming"></span></button>
+    <button data-tab="queue">Orders<span class="count" id="c-queue"></span></button>
+  </nav>
+</header>
+
+<main>
+  <section id="quests" class="on">
+    <div class="filters" id="qfilters">
+      <button data-f="all" class="on">All open</button><button data-f="fav">★ Favourites</button>
+      <button data-f="interlude">Interludes</button><button data-f="strengthening">Strengthening</button>
+    </div>
+    <div class="panel"><h2>Open now <span class="sub">tap to select, then send the agent</span></h2><div class="grid" id="open"></div></div>
+    <div class="panel"><h2>Locked <span class="sub">what each one still needs</span></h2><div id="locked"></div></div>
+  </section>
+
+  <section id="upgrades">
+    <div class="panel"><h2>Materials short <span class="sub" id="qpline"></span></h2><div class="missing" id="missing"></div></div>
+    <div class="panel"><h2>Servants <span class="sub">targets from your Chaldea plan</span></h2><div id="servants"></div></div>
+  </section>
+
+  <section id="story"><div id="wars"></div></section>
+
+  <section id="farming">
+    <div class="panel"><h2>Farming plans <span class="sub">found by the agent's exploratory runs, aiming for 3 turns</span></h2><div id="farms"></div></div>
+  </section>
+
+  <section id="queue">
+    <div class="panel">
+      <h2>Orders for the agent <span class="sub" id="runstate"></span></h2>
+      <div style="display:flex;gap:8px;margin-bottom:10px"><button id="runBtn">Run orders</button><button class="danger" id="stopBtn">Stop</button></div>
+      <div id="tasks"></div>
+    </div>
+    <div class="panel">
+      <h2>Custom order</h2>
+      <textarea id="customText" placeholder="Anything else, in plain words: e.g. clear today's daily quests"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;align-items:center">
+        <label class="meta">apple budget <input type="number" id="customApples" min="0" value="5"></label>
+        <button id="customBtn">Add order</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="bar" id="bar">
+  <span id="barText"></span>
+  <label class="meta">apple budget <input type="number" id="barApples" min="0" value="10"></label>
+  <button class="ghost" id="barClear">Clear</button><button id="barSend">Send the agent</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const fmt = (n) => Number(n).toLocaleString();
+let B = null, filter = "all";
+const selected = new Map();
+
+function toast(text) { const t = $("toast"); t.textContent = text; t.style.display = "block"; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = "none", 3500); }
+async function post(url, body) {
+  const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: body ? JSON.stringify(body) : undefined});
+  const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText); return j;
+}
+
+function face(s) {
+  return `<div class="face r${s.rarity}"><img class="f" src="${esc(s.face)}" loading="lazy" alt=""><img class="c" src="${esc(s.class_icon)}" alt="">${s.favorite ? '<span class="fav">★</span>' : ""}</div>`;
+}
+
+function renderHeader() {
+  const r = B.resources, i = r.icons;
+  $("master").textContent = `Master Lv.${r.level}  ·  AP ${r.ap_max}  ·  cost ${r.cost_max}`;
+  $("res").innerHTML = [
+    ["gold", r.apples.gold], ["silver", r.apples.silver], ["bronze", r.apples.bronze],
+    ["saint_quartz", r.saint_quartz], ["qp", r.qp >= 1e8 ? (r.qp / 1e8).toFixed(1) + " 億" : fmt(r.qp)],
+  ].map(([k, v]) => `<span class="chip"><img src="${esc(i[k])}" alt="">${typeof v === "number" ? fmt(v) : v}</span>`).join("");
+  const age = Math.round((Date.now() / 1000 - B.synced_at) / 60);
+  $("synced").textContent = `synced ${age < 60 ? age + " min" : Math.round(age / 60) + " h"} ago`;
+}
+
+function renderQuests() {
+  const keep = (q) => filter === "all" || (filter === "fav" ? q.favorite : q.kind === filter);
+  const open = B.quests.open.filter(keep);
+  $("c-quests").textContent = B.quests.open.length;
+  $("open").innerHTML = open.map((q) => `
+    <div class="card ${selected.has(q.quest_id) ? "sel" : ""}" data-q="${q.quest_id}">
+      ${face(q.servant)}
+      <div class="info"><div class="n">${esc(q.servant.name)}</div><div class="q">${esc(q.name)}</div>
+        <div class="meta"><span class="tag ${q.kind}">${q.kind}</span><span>${q.ap ?? "?"} AP</span><span>${q.phases} phase${q.phases > 1 ? "s" : ""}</span></div></div>
+    </div>`).join("") || '<div class="empty">nothing open here</div>';
+  const groups = {};
+  for (const q of B.quests.locked.filter(keep)) {
+    const key = q.missing.map((m) => m.replace(/\d+ \(has \d+\)/, "").replace(/clear quest .*/, "story quest").trim()).join(" + ");
+    (groups[key] ||= []).push(q);
+  }
+  $("locked").innerHTML = Object.entries(groups).sort((a, b) => b[1].length - a[1].length).map(([k, qs]) => `
+    <details><summary>needs ${esc(k)} (${qs.length})</summary><div class="grid">${qs.map((q) => `
+      <div class="card" style="cursor:default">${face(q.servant)}<div class="info"><div class="n">${esc(q.servant.name)}</div>
+      <div class="q">${esc(q.name)}</div><div class="need">${esc(q.missing.join(", "))}</div></div></div>`).join("")}</div></details>`).join("")
+    || '<div class="empty">nothing locked</div>';
+}
+
+function mat(m) {
+  return `<div class="mat ${m.have >= m.need ? "enough" : "short"}" title="${esc(m.name)}"><img src="${esc(m.icon)}" loading="lazy" alt=""><b>${fmt(m.have)}/${fmt(m.need)}</b></div>`;
+}
+
+function renderUpgrades() {
+  const u = B.upgrades;
+  $("c-upgrades").textContent = u.servants.length;
+  $("qpline").textContent = `QP needed ${fmt(u.qp.need)} of ${fmt(u.qp.have)}`;
+  $("missing").innerHTML = u.missing.map((m) => `
+    <div class="miss" title="${esc(m.name)}: have ${fmt(m.have)}, need ${fmt(m.need)}"><img src="${esc(m.icon)}" alt=""><div><div class="nm">${esc(m.name)}</div><div class="x">-${fmt(m.missing)}</div></div>
+    <button data-farm="${esc(m.name)}" data-n="${m.missing}">Farm</button></div>`).join("")
+    || '<div class="empty">nothing short: everything in the plan can be done</div>';
+  const lv = (c, t) => c === t ? `<b>${c}</b>` : `<b>${c}</b><span class="to"> → ${t}</span>`;
+  $("servants").innerHTML = (u.has_plan ? "" : '<div class="empty">no Chaldea plan found: set targets in Chaldea (Plan tile)</div>') +
+    u.servants.map((s) => `
+    <div class="row">${face(s)}
+      <div class="info"><div class="n">${esc(s.name)} ${s.can_do ? '<span class="tag ok">ready</span>' : '<span class="tag no">short</span>'}</div>
+        <div class="lv">Ascension ${lv(s.current.ascension, s.target.ascension)} · Skills ${s.current.skills.map((c, i) => lv(c, s.target.skills[i])).join("/")}
+        · Appends ${s.current.appends.map((c, i) => lv(c, s.target.appends[i])).join("/")} · QP ${fmt(s.qp)}</div>
+        <div class="mats">${s.materials.map(mat).join("")}</div></div>
+    </div>`).join("");
+}
+
+function renderStory() {
+  $("c-story").textContent = B.story.reduce((n, w) => n + w.main.length + w.free.length, 0);
+  $("wars").innerHTML = B.story.map((w) => `
+    <div class="panel"><div class="war">${w.banner ? `<img src="${esc(w.banner)}" loading="lazy" alt="">` : ""}
+      <div class="info"><h2 style="margin:0">${esc(w.name)}</h2>
+      <div class="meta">${w.main.length} story quest${w.main.length === 1 ? "" : "s"} · ${w.free.length} free quest${w.free.length === 1 ? "" : "s"}${w.free.length ? " (Saint Quartz on first clear)" : ""}</div></div>
+      <button data-war="${w.war}">Send the agent</button></div>
+      <details><summary>quests</summary><div class="meta" style="display:block">${[...w.main, ...w.free].map((q) => `${q.type === "main" ? "📖" : "⚔"} ${esc(q.spot)}: ${esc(q.name)} (${q.ap ?? "?"} AP)`).join("<br>")}</div></details>
+    </div>`).join("") || '<div class="panel empty">every story and free quest is cleared</div>';
+}
+
+function renderFarms() {
+  $("c-farming").textContent = B.farms.length || "";
+  $("farms").innerHTML = B.farms.map((p) => `
+    <div class="row"><div class="info"><div class="n">${esc(p.quest_name)} ${p.three_turn ? '<span class="tag ok">3-turn verified</span>' : `<span class="tag no">${p.turns} turns</span>`}</div>
+      <div class="meta">for ${esc(p.target_item || "?")} · support ${esc(p.support)} · MC ${esc(p.mystic_code || "-")} · updated ${esc(p.updated)}</div>
+      <div class="lv">party ${esc(p.party.join(", "))}<br>command <b>${esc(p.skill_command)}</b></div>
+      ${p.notes ? `<div class="meta">${esc(p.notes)}</div>` : ""}</div></div>`).join("")
+    || '<div class="empty">no plans yet: send a Farm order from the materials list and the agent will explore one</div>';
+}
+
+async function renderQueue() {
+  const s = await (await fetch("/api/queue")).json();
+  const active = s.tasks.filter((t) => t.status === "queued" || t.status === "running").length;
+  $("c-queue").textContent = active || "";
+  $("runstate").textContent = s.runner ? "the agent is working through the orders" : s.agent ? "a separate agent run is playing" : s.syncing ? "syncing your account" : "idle";
+  $("runBtn").disabled = s.runner || s.agent || s.syncing || !active;
+  $("stopBtn").disabled = !s.runner;
+  $("syncBtn").disabled = s.runner || s.agent || s.syncing;
+  $("syncBtn").textContent = s.syncing ? "Syncing" : "Sync";
+  $("tasks").innerHTML = s.tasks.slice().reverse().map((t) => `
+    <div class="task"><span class="status ${t.status}">${t.status}</span>
+      <div class="info"><div class="n">${esc(t.title)}</div>
+        <div class="meta">${t.kind}${t.apples != null ? ` · ≤${t.apples} apples` : ""}${t.cost ? ` · $${t.cost.toFixed(2)}` : ""}${t.turns ? ` · ${t.turns} turns` : ""}</div>
+        ${t.report ? `<details><summary>report</summary><div class="meta" style="white-space:pre-wrap;display:block">${esc(t.report)}</div></details>` : ""}</div>
+      ${t.status !== "running" ? `<button class="ghost" data-del="${t.id}">✕</button>` : ""}</div>`).join("")
+    || '<div class="empty">no orders yet</div>';
+}
+
+function renderBar() {
+  $("bar").classList.toggle("on", selected.size > 0);
+  $("barText").textContent = `${selected.size} quest${selected.size === 1 ? "" : "s"} selected`;
+}
+
+async function load() {
+  const r = await fetch("/api/board");
+  B = await r.json();
+  if (B.error) { $("master").textContent = B.error; return; }
+  renderHeader(); renderQuests(); renderUpgrades(); renderStory(); renderFarms();
+}
+
+document.addEventListener("click", async (e) => {
+  const el = e.target.closest("[data-tab],[data-f],[data-q],[data-farm],[data-war],[data-del]");
+  if (!el) return;
+  try {
+    if (el.dataset.tab) {
+      document.querySelectorAll("nav button").forEach((b) => b.classList.toggle("on", b === el));
+      document.querySelectorAll("section").forEach((s) => s.classList.toggle("on", s.id === el.dataset.tab));
+    } else if (el.dataset.f) {
+      filter = el.dataset.f; document.querySelectorAll("#qfilters button").forEach((b) => b.classList.toggle("on", b === el)); renderQuests();
+    } else if (el.dataset.q) {
+      const id = Number(el.dataset.q); const q = B.quests.open.find((x) => x.quest_id === id);
+      selected.has(id) ? selected.delete(id) : selected.set(id, q); renderQuests(); renderBar();
+    } else if (el.dataset.farm) {
+      const n = prompt(`How many ${el.dataset.farm} should the agent farm?`, el.dataset.n); if (!n) return;
+      const apples = prompt("Apple budget for this order?", "20"); if (apples === null) return;
+      await post("/api/queue", {kind: "farm", title: `Farm ${n} ${el.dataset.farm}`, payload: {item: el.dataset.farm, count: Number(n)}, apples: Number(apples)});
+      toast("farm order added"); renderQueue();
+    } else if (el.dataset.war) {
+      const w = B.story.find((x) => x.war === Number(el.dataset.war));
+      await post("/api/queue", {kind: "story", title: `Clear ${w.name}`, payload: {war: w.war, war_name: w.name, quests: [...w.main, ...w.free].map((q) => ({quest_id: q.quest_id, name: q.name}))}, apples: 10});
+      toast("story order added"); renderQueue();
+    } else if (el.dataset.del) {
+      await fetch(`/api/queue/${el.dataset.del}`, {method: "DELETE"}); renderQueue();
+    }
+  } catch (err) { toast(err.message); }
+});
+
+$("barClear").onclick = () => { selected.clear(); renderQuests(); renderBar(); };
+$("barSend").onclick = async () => {
+  const qs = [...selected.values()];
+  try {
+    await post("/api/queue", {kind: "quests", title: `Clear ${qs.length} quest${qs.length === 1 ? "" : "s"}: ${qs.slice(0, 3).map((q) => q.servant.name).join(", ")}${qs.length > 3 ? "…" : ""}`,
+      payload: {quests: qs.map((q) => ({quest_id: q.quest_id, name: q.name, who: `${q.servant.name}'s ${q.kind}`}))}, apples: Number($("barApples").value)});
+    selected.clear(); renderQuests(); renderBar(); toast("order added: see Orders"); renderQueue();
+  } catch (err) { toast(err.message); }
+};
+$("customBtn").onclick = async () => {
+  const text = $("customText").value.trim(); if (!text) return;
+  try { await post("/api/queue", {kind: "custom", title: text.slice(0, 80), payload: {text}, apples: Number($("customApples").value)}); $("customText").value = ""; renderQueue(); }
+  catch (err) { toast(err.message); }
+};
+$("runBtn").onclick = async () => { try { await post("/api/queue/run"); toast("the agent is on it"); renderQueue(); } catch (err) { toast(err.message); } };
+$("stopBtn").onclick = async () => { try { await post("/api/queue/stop"); renderQueue(); } catch (err) { toast(err.message); } };
+$("syncBtn").onclick = async () => { try { await post("/api/sync"); toast("syncing: FGO restarts once"); renderQueue(); } catch (err) { toast(err.message); } };
+
+load(); renderQueue();
+setInterval(renderQueue, 5000);
+setInterval(load, 60000);
+</script>
+</body>
+</html>

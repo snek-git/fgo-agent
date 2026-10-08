@@ -48,6 +48,15 @@ It reads Claude Code's own session transcript, so it follows interactive and hea
 Either way the session gets only the `fgo` tools (no shell, files or web). `CLAUDE.md` is the
 playbook. `scripts/play.sh -b -r <session> "message"` resumes a session that stopped.
 
+## Board
+
+`uv run fgo-agent view` also serves the board at http://127.0.0.1:8765/board: what is left on the
+account (open and locked interludes and strengthening quests, ascension and skill materials short
+for your Chaldea plan, uncleared story and free quests, saved farming plans) and an order queue.
+Select quests or press Farm / Send the agent, then Run orders: `fgo-agent runner` works through
+them one at a time as the user service `fgo-agent-queue` (one session per account), then syncs
+the account. Sync re-captures the account on demand.
+
 ## Account sync
 
 ```sh

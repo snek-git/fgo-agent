@@ -14,6 +14,7 @@ def main() -> None:
     shot = sub.add_parser("shot", help="save a screenshot")
     shot.add_argument("path", nargs="?", default="screen.png")
     sub.add_parser("bench", help="time FGA's screen detection through the bridge")
+    sub.add_parser("runner", help="work through the board's task queue (run as a user service)")
     watch = sub.add_parser("watch", help="follow a headless play log live (latest by default)")
     watch.add_argument("log", nargs="?")
     imp = sub.add_parser("import-account", help="fill the roster and CE list from a captured login response")
@@ -35,6 +36,12 @@ def main() -> None:
         from .view import run as view_run
 
         view_run(args.host, args.port)
+        return
+
+    if args.cmd == "runner":
+        from .runner import main as runner_main
+
+        runner_main()
         return
 
     if args.cmd == "watch":

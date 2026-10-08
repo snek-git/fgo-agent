@@ -402,6 +402,47 @@ def write_note(topic: str, text: str, replace: bool = False) -> str:
 
 
 @mcp.tool()
+def save_farm_plan(
+    quest_id: int,
+    quest_name: str,
+    party: list[str],
+    support: str,
+    skill_command: str,
+    turns: int,
+    mystic_code: str | None = None,
+    target_item: str | None = None,
+    notes: str | None = None,
+) -> str:
+    """Save a farming plan that worked, so later runs (and FGA's own farming loop) reuse it.
+    party: your servants with their CEs in slot order, e.g. ["Mélusine (Ruler) + Kaleidoscope", ...].
+    support: the support it needs, with anything the plan depends on (NP level, CE, Lv120 120% NP
+    start). skill_command: FGA notation for the whole battle, waves separated by ',' and NPs as
+    4 5 6, e.g. "d4,ac5,j6". turns: how many turns the clear actually took (aim for 3, one per
+    wave). Overwrites the plan saved for that quest."""
+    from .board import FARMS
+
+    plan = {"quest_id": quest_id, "quest_name": quest_name, "target_item": target_item, "party": party,
+            "support": support, "mystic_code": mystic_code, "skill_command": skill_command, "turns": turns,
+            "three_turn": turns <= 3, "notes": notes, "updated": time.strftime("%Y-%m-%d %H:%M")}
+    FARMS.mkdir(parents=True, exist_ok=True)
+    (FARMS / f"{quest_id}.json").write_text(json.dumps(plan, ensure_ascii=False, indent=2) + "\n")
+    return f"saved farm plan for {quest_name} ({turns} turns{'' if turns <= 3 else ': not a 3-turn clear yet'})"
+
+
+@mcp.tool()
+def farm_plans() -> str:
+    """Farming plans saved earlier (quest, party, support, FGA skill command, turns)."""
+    from .board import farms
+
+    plans = farms()
+    if not plans:
+        return "no farm plans saved yet"
+    return "\n".join(f"{p['quest_name']} (quest {p['quest_id']}, {p['turns']} turns, for {p.get('target_item') or '?'}): "
+                     f"party {', '.join(p['party'])}; support {p['support']}; MC {p.get('mystic_code') or '-'}; "
+                     f"command {p['skill_command']}" + (f"; {p['notes']}" if p.get("notes") else "") for p in plans)
+
+
+@mcp.tool()
 def update_servant(
     servant: str,
     level: int | None = None,

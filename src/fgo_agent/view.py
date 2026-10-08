@@ -16,7 +16,7 @@ from starlette.requests import Request
 from starlette.responses import HTMLResponse, StreamingResponse
 from starlette.routing import Route
 
-from . import stream
+from . import api, stream
 
 
 PROJECT = Path(__file__).resolve().parents[2]
@@ -153,9 +153,9 @@ async def page(_: Request) -> HTMLResponse:
 
 
 app = Starlette(routes=[Route("/", page), Route("/screen.mjpg", mjpeg), Route("/audio.mp3", mp3),
-                        Route("/feed", feed)])
+                        Route("/feed", feed), *api.routes])
 
 
 def run(host: str, port: int) -> None:
-    print(f"viewer on http://{host}:{port}  (transcripts: {TRANSCRIPTS})")
+    print(f"viewer on http://{host}:{port}, board on http://{host}:{port}/board  (transcripts: {TRANSCRIPTS})")
     uvicorn.run(app, host=host, port=port, log_level="warning")

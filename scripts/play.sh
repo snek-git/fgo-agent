@@ -7,6 +7,7 @@
 #                                        keeps going if the terminal or Claude Code closes;
 #                                        stop it with `systemctl --user stop fgo-agent-run`
 #        add -r <session> to resume a session that stopped, with the goal as the message
+#        add -k to keep the emulator running afterwards (the task queue runs several in a row)
 # The emulator and FGO start if they are not running, and stop again after the run unless the
 # FGO window (app/fgo.sh) is open.
 set -euo pipefail
@@ -14,11 +15,13 @@ cd "$(dirname "$0")/.."
 
 background=false
 detach=false
+keep=false
 resume=()
 while [ $# -gt 0 ]; do
   case "$1" in
     -b) background=true; shift ;;
     -d) detach=true; shift ;;
+    -k) keep=true; shift ;;
     -r) resume=(--resume "$2"); shift 2 ;;
     *) break ;;
   esac
@@ -55,7 +58,7 @@ stop_emulator() {
     scripts/emu.sh down && echo "emulator stopped"
   fi
 }
-trap stop_emulator EXIT
+$keep || trap stop_emulator EXIT
 
 # --tools "" removes every built-in tool (no shell, files, web, agents); only the fgo server's
 # tools exist, and they are pre-approved.

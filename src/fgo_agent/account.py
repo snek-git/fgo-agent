@@ -120,18 +120,33 @@ def _quest_wars() -> dict[int, tuple[str, dict]]:
     return quests
 
 
-def pending_quests(kind: str | None = None) -> str:
-    """Interludes and strengthening quests of the user's servants that are not cleared yet,
-    split into open ones and locked ones (with what is missing), from the last sync."""
-    tables, when = _synced()
-    units = tables["userSvt"] + tables.get("userSvtStorage", [])
-    servants = {s["id"]: s for s in atlas.servants()}
+def owned_servants(tables: dict) -> dict[int, dict]:
+    """The best copy of each owned servant, by svtId."""
+    servants = {s["id"] for s in atlas.servants()}
     owned: dict[int, dict] = {}
-    for u in units:
+    for u in tables["userSvt"] + tables.get("userSvtStorage", []):
         if u["svtId"] in servants and u["limitCount"] >= owned.get(u["svtId"], {}).get("limitCount", -1):
             owned[u["svtId"]] = u
+    return owned
+
+
+def favorites(tables: dict) -> set[int]:
+    """svtIds the user marked 選択 in the game's servant list."""
+    return {u["svtId"] for u in tables["userSvt"] + tables.get("userSvtStorage", []) if u["status"] & SELECTED}
+
+
+def cleared_quests(tables: dict) -> set[int]:
+    return {q["questId"] for q in tables.get("userQuest", []) if q["clearNum"] > 0}
+
+
+def quest_rows(tables: dict, kind: str | None = None) -> list[dict]:
+    """Every uncleared interlude and strengthening quest of the user's servants, with what
+    still blocks it (empty `missing` means it is open now)."""
+    servants = {s["id"]: s for s in atlas.servants()}
+    owned = owned_servants(tables)
     bond = {c["svtId"]: c["friendshipRank"] for c in tables.get("userSvtCollection", [])}
-    cleared = {q["questId"] for q in tables.get("userQuest", []) if q["clearNum"] > 0}
+    cleared = cleared_quests(tables)
+    favorite = favorites(tables)
     quests = _quest_wars()
 
     def missing(cond: dict) -> str | None:
@@ -148,11 +163,8 @@ def pending_quests(kind: str | None = None) -> str:
             return None
         return f"{kind_} {target} {value}"
 
-    # The user's favourites: servants marked 選択 in the game's servant list
-    favorite = {u["svtId"] for u in units if u["status"] & SELECTED}
-    open_rows: list[tuple[bool, str]] = []
-    locked_rows = []
-    for svt_id, u in sorted(owned.items(), key=lambda kv: servants[kv[0]]["collectionNo"]):
+    rows = []
+    for svt_id in sorted(owned, key=lambda i: servants[i]["collectionNo"]):
         s = servants[svt_id]
         for qid in s.get("relateQuestIds", []):
             if qid in cleared or qid not in quests:
@@ -160,14 +172,27 @@ def pending_quests(kind: str | None = None) -> str:
             quest_kind, q = quests[qid]
             if kind and quest_kind != kind:
                 continue
-            reasons = [m for c in q.get("releaseConditions", []) if (m := missing(c))]
-            row = (f"{'★ ' if svt_id in favorite else ''}#{s['collectionNo']} {s['name']}: {quest_kind} "
-                   f"「{q['name']}」 (quest {qid}, {q.get('consume', '?')} AP, {len(q['phases'])} phases)")
-            if reasons:
-                locked_rows.append(f"{row} needs {', '.join(sorted(set(reasons)))}")
-            else:
-                open_rows.append((svt_id in favorite, row))
-    ordered = [row for fav, row in open_rows if fav] + [row for fav, row in open_rows if not fav]
+            rows.append({
+                "kind": quest_kind, "quest_id": qid, "name": q["name"], "ap": q.get("consume"),
+                "phases": len(q["phases"]), "servant": s["collectionNo"], "servant_name": s["name"],
+                "favorite": svt_id in favorite,
+                "missing": sorted({m for c in q.get("releaseConditions", []) if (m := missing(c))}),
+            })
+    return sorted(rows, key=lambda r: not r["favorite"])  # stable: favourites first
+
+
+def pending_quests(kind: str | None = None) -> str:
+    """Interludes and strengthening quests of the user's servants that are not cleared yet,
+    split into open ones and locked ones (with what is missing), from the last sync."""
+    tables, when = _synced()
+    rows = quest_rows(tables, kind)
+
+    def line(r: dict) -> str:
+        return (f"{'★ ' if r['favorite'] else ''}#{r['servant']} {r['servant_name']}: {r['kind']} "
+                f"「{r['name']}」 (quest {r['quest_id']}, {r['ap'] or '?'} AP, {r['phases']} phases)")
+
+    ordered = [line(r) for r in rows if not r["missing"]]
+    locked_rows = [f"{line(r)} needs {', '.join(r['missing'])}" for r in rows if r["missing"]]
     return (f"from the account sync of {when}; quests cleared since then still show here\n"
             f"★ = the user's favourite (marked 選択 in game): do these first\n"
             f"OPEN ({len(ordered)}):\n" + ("\n".join(ordered) or "none")
