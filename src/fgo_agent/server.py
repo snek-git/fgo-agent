@@ -162,6 +162,16 @@ def launch_fgo() -> list:
 
 
 @mcp.tool()
+def restart_fgo() -> list:
+    """Force-close FGO and start it again. For a frozen game: a battle that never finishes its
+    turn, a screen that ignores taps and back for over a minute. A battle in progress resumes
+    from the title screen with 再開する, at the start of the current turn."""
+    device().restart_fgo()
+    time.sleep(10)
+    return _view()
+
+
+@mcp.tool()
 def act(command: str) -> list:
     """Battle, your turn: run actions with FGA's skill notation, through FGA's caster (it
     confirms, targets and waits for each animation). One turn only, no ',' or '#'.

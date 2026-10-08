@@ -46,6 +46,10 @@ class Device:
         # monkey fails on this image; start the activity directly, as scripts/emu.sh does
         self.shell(f"am start -n {FGO_PACKAGE}/jp.delightworks.Fgo.player.AndroidPlugin")
 
+    def restart_fgo(self) -> None:
+        self.shell(f"am force-stop {FGO_PACKAGE}")
+        self.launch_fgo()
+
     def fgo_running(self) -> bool:
         return bool(self.shell(f"pidof {FGO_PACKAGE} || true").strip())
 
