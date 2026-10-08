@@ -15,7 +15,7 @@
          background: repeating-linear-gradient(45deg, rgba(255,255,255,.12) 0 1px, transparent 1px 34px),
                      repeating-linear-gradient(-45deg, rgba(255,255,255,.12) 0 1px, transparent 1px 34px),
                      linear-gradient(180deg, #bfe3ff 0%, #8ccaf6 40%, #5eaee9 100%); background-attachment: fixed; }
-  body.embed { background: transparent; min-height: 0; overflow: hidden; }
+  body.embed { background: transparent; min-height: 0; overflow: hidden auto; }
   .wrap { max-width: 1280px; margin: 0 auto; padding: 16px; }
   body.embed .wrap { padding: 0; }
   .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
@@ -37,6 +37,45 @@
   .ripple { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; border: 2px solid #fff; pointer-events: none;
             box-shadow: 0 0 8px #59b4ff; animation: ripple .45s ease-out forwards; }
   @keyframes ripple { to { transform: scale(2.2); opacity: 0; } }
+  /* Screen on the left, the agent's log beside it at the screen's height; stacked on narrow screens */
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 12px; }
+  .layout .screen { margin: 0 0 0 auto; }
+  .log { position: relative; min-height: 260px; border-radius: 6px; overflow: hidden; background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(232, 244, 255, .94));
+         border: 2px solid #fff; box-shadow: 0 0 0 1px var(--rim), 0 4px 12px rgba(30, 90, 160, .25); }
+  .log .in { position: absolute; inset: 0; display: flex; flex-direction: column; }
+  .head { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: linear-gradient(180deg, #1a2f57, #2a4a80); color: #fff; font-weight: 700; flex: none; }
+  .head .meta { margin-left: auto; font-size: 11px; font-weight: 400; color: #bcdcff; display: flex; gap: 10px; }
+  .head .meta b { color: #fff; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #e05a5a; flex: none; }
+  .dot.live { background: #5fd08a; box-shadow: 0 0 6px #5fd08a; }
+  #list { flex: 1; min-height: 0; overflow-y: auto; padding: 6px; display: flex; flex-direction: column; gap: 4px; }
+  .ev { background: #fff; border: 1px solid #cfe2f5; border-left: 3px solid var(--rim); border-radius: 4px; padding: 4px 8px; font-size: 12px; word-break: break-word; }
+  .ev .t { color: var(--muted); font-size: 10px; margin-right: 6px; font-variant-numeric: tabular-nums; }
+  .ev.say { border-left-color: #2a8be0; font-size: 13px; white-space: pre-wrap; }
+  .ev.think, .ev.prompt { color: var(--muted); white-space: pre-wrap; cursor: pointer; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .ev.think { border-left-color: #a58bd8; font-style: italic; }
+  .ev.prompt { border-left-color: #d9822b; }
+  .ev.open { display: block; -webkit-line-clamp: unset; }
+  .ev.call { border-left-color: #1a2f57; }
+  .ev.call .name { font-weight: 700; color: var(--ink); font-family: ui-monospace, monospace; }
+  .ev.call .args { color: var(--ink2); font-family: ui-monospace, monospace; font-size: 11px; margin-left: 6px; }
+  .ev.call:not(.open) .line { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+  .ev.call.open .line { cursor: pointer; }
+  .ev .pending { color: var(--muted); font-size: 11px; }
+  .ev.err { border-left-color: #d33f3f; background: #fff3f3; }
+  .res summary { cursor: pointer; list-style: none; color: #2f7a4b; font: 11px/1.5 ui-monospace, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .res summary::before { content: "▸ "; color: var(--muted); }
+  .res[open] summary::before { content: "▾ "; }
+  .res[open] summary { white-space: normal; }
+  .ev.err .res summary { color: #c03535; }
+  .res pre { margin: 4px 0 0; white-space: pre-wrap; word-break: break-word; font: 11px/1.4 ui-monospace, monospace; max-height: 300px; overflow: auto;
+             background: #f2f8fe; border: 1px solid #cfe2f5; border-radius: 4px; padding: 6px; color: var(--ink); }
+  .empty { color: var(--muted); text-align: center; padding: 24px 8px; font-size: 12px; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    .layout .screen { margin: 0 auto; }
+    .log { height: 55vh; }
+  }
   .toast { position: fixed; right: 16px; bottom: 16px; background: #fff; color: var(--ink); border: 1px solid var(--rim); padding: 10px 14px; border-radius: 6px; display: none; box-shadow: 0 4px 14px rgba(10, 40, 90, .3); }
 </style>
 </head>
@@ -51,9 +90,16 @@
     <button class="light" id="windowBtn" title="scrcpy window: no lag, for real-time play">Open game window</button>
     <span class="hint" id="hint">click = tap · drag = swipe · hold = long press · Esc = back</span>
   </div>
-  <div class="screen" id="screen">
-    <img id="img" alt="">
-    <div class="off" id="off"><div><h2>The game is off</h2><button class="go" id="startBig">Start game</button></div></div>
+  <div class="layout">
+    <div class="screen" id="screen">
+      <img id="img" alt="">
+      <div class="off" id="off"><div><h2>The game is off</h2><button class="go" id="startBig">Start game</button></div></div>
+    </div>
+    <div class="log"><div class="in">
+      <div class="head"><span class="dot" id="dot"></span>Agent log
+        <span class="meta"><span>actions <b id="count">0</b></span><span>cost <b id="cost">$0</b></span><span id="session"></span></span></div>
+      <div id="list"><div class="empty">No agent session yet</div></div>
+    </div></div>
   </div>
 </div>
 <audio id="audio" preload="none"></audio>
@@ -121,6 +167,81 @@ scr.addEventListener("pointerup", (e) => {
   }
   down = null;
 });
+
+// Agent log: the playing session's transcript from /feed (same events as the viewer), newest on top
+const list = $("list"), calls = new Map();
+let actions = 0;
+const el = (tag, cls, text) => { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+const clock = (iso) => iso ? new Date(iso).toLocaleTimeString([], {hour12: false}) : "";
+function entry(cls, text, iso) {
+  const n = el("div", "ev " + cls);
+  if (iso) n.append(el("span", "t", clock(iso)));
+  if (text !== undefined) n.append(text);
+  return n;
+}
+function push(n) {
+  list.querySelector(".empty")?.remove();
+  list.prepend(n);
+  while (list.childElementCount > 500) list.lastElementChild.remove();
+}
+function preview(value) {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    const parts = [];
+    if (value.screen && !Array.isArray(value.cards)) parts.push(value.screen);
+    if (value.battle) parts.push(`wave ${value.battle.wave} turn ${value.battle.turn_in_wave}`);
+    if (Array.isArray(value.cards)) {
+      const letter = {buster: "B", arts: "A", quick: "Q"};
+      parts.push("cards " + value.cards.map((c) => (letter[c.type] || "-") + (c.affinity === "weak" ? "!" : "")).join(" "));
+    }
+    if (value.note) parts.push(value.note);
+    if (value.warning) parts.push("⚠ " + value.warning);
+    if (parts.length) return parts.join(" · ");
+  }
+  return JSON.stringify(value);
+}
+function result(card, ev) {
+  card.querySelector(".pending")?.remove();
+  const text = ev.text || "", d = el("details", "res"), body = el("pre");
+  let summary;
+  try { const v = JSON.parse(text); summary = preview(v); body.textContent = JSON.stringify(v, null, 2); }
+  catch { summary = text.split("\n")[0] || "(no text)"; body.textContent = text; }
+  d.append(el("summary", "", summary), body);
+  card.append(d);
+  if (ev.error) card.classList.add("err");
+}
+list.addEventListener("click", (e) => {
+  const ev = e.target.closest(".ev");
+  if (!ev || e.target.closest("details")) return;
+  if (ev.matches(".think, .prompt") || e.target.closest(".line")) ev.classList.toggle("open");
+});
+function show(ev) {
+  switch (ev.kind) {
+    case "session":
+      list.replaceChildren(el("div", "empty", "Session started, waiting for the agent")); calls.clear(); actions = 0; $("count").textContent = 0;
+      $("session").textContent = ev.id.slice(0, 8); break;
+    case "prompt": push(entry("prompt", ev.text, ev.time)); break;
+    case "say": push(entry("say", ev.text, ev.time)); break;
+    case "think": push(entry("think", ev.text, ev.time)); break;
+    case "call": {
+      const line = el("div", "line");
+      line.append(el("span", "t", clock(ev.time)), el("span", "name", ev.tool));
+      const args = JSON.stringify(ev.args);
+      if (args !== "{}") line.append(el("span", "args", args));
+      const card = entry("call");
+      card.append(line, el("div", "pending", "running..."));
+      calls.set(ev.id, card); push(card);
+      $("count").textContent = ++actions; break;
+    }
+    case "result": { const card = calls.get(ev.id); if (card) result(card, ev); break; }
+    case "cost": if (ev.usd != null) $("cost").textContent = "$" + ev.usd.toFixed(2); break;
+  }
+}
+(function connect() {
+  const source = new EventSource("/feed");
+  source.onopen = () => $("dot").classList.add("live");
+  source.onmessage = (m) => show(JSON.parse(m.data));
+  source.onerror = () => $("dot").classList.remove("live");
+})();
 
 poll(); setInterval(poll, 3000);
 </script>
