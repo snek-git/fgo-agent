@@ -430,6 +430,28 @@ def save_farm_plan(
 
 
 @mcp.tool()
+def farm_battle(skill_command: str) -> list:
+    """Farm with a saved plan using FGA's own battle loop, no turn-by-turn play from you.
+    Start it on the battle screen: party set, support picked, quest started. FGA plays every
+    turn from skill_command (the plan's FGA notation, waves separated by ',') with its card
+    priority, taps through results and Repeat, and returns at the next support select (pick the
+    support from the plan, then call this again), when AP runs out (refill with an apple, then
+    call again), or on anything it does not handle. Reports runs done and turns per run: a
+    3-wave plan should take 3 turns; if not, the plan needs fixing."""
+    result = bridge().call("farm", command=skill_command)
+    waves = skill_command.count(",") + 1
+    state = {"farm_exit": result.get("exit"), "runs": result.get("runs", 0)}
+    if result.get("error"):
+        state["farm_error"] = result["error"]
+    if result.get("runs"):
+        state["turns"] = f"{result['min_turns']}-{result['max_turns']}" if result["min_turns"] != result["max_turns"] else result["min_turns"]
+        if result["max_turns"] > waves:
+            state["plan_check"] = (f"took up to {result['max_turns']} turns for {waves} waves: not a {waves}-turn plan; "
+                                   "fix it with an exploratory run and save_farm_plan")
+    return _view(state)
+
+
+@mcp.tool()
 def farm_plans() -> str:
     """Farming plans saved earlier (quest, party, support, FGA skill command, turns)."""
     from .board import farms

@@ -244,6 +244,14 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
         turnStarted = true
     }
 
+    /** FGA's AutoBattle just drove the game on its own component: nothing here is current. */
+    fun afterFarm() {
+        isInBattle = false
+        cardsOpen = false
+        turnStarted = false
+        runEnded = true
+    }
+
     fun battleInfo() = mapOf(
         "wave" to state.stage + 1,
         "turn_in_wave" to state.turn + 1,  // FGA counts turns per wave

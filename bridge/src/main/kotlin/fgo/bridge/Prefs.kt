@@ -46,10 +46,21 @@ class BridgeSupportPrefs : ISupportPreferences {
     override val requireBothNormalAndRewardMatch = false
 }
 
+/**
+ * The skill command for FGA's own battle loop (the "farm" command). BridgePrefs is created per
+ * injection, so the command lives here, and each farm call builds a fresh component so FGA's
+ * script-scoped AutoSkillCommand is parsed from it.
+ */
+object FarmCommand {
+    @Volatile var skillCommand = ""
+}
+
 class BridgeBattleConfig : IBattleConfig {
     override val id = "bridge"
     override var name = "bridge"
-    override var skillCommand = ""
+    override var skillCommand: String
+        get() = FarmCommand.skillCommand
+        set(value) { FarmCommand.skillCommand = value }
     override var cardPriority: CardPriorityPerWave = CardPriorityPerWave.default
     override val useServantPriority = false
     override val servantPriority: ServantPriorityPerWave = ServantPriorityPerWave.default

@@ -1,5 +1,7 @@
 package fgo.bridge
 
+import io.github.fate_grand_automata.scripts.entrypoints.AutoBattle
+import io.github.fate_grand_automata.scripts.models.AutoSkillCommand
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -75,8 +77,37 @@ private fun handle(flow: Flow, request: JsonObject): JsonObject = buildJsonObjec
         "back" -> flow.back()
         "play" -> flow.play(request.ints("nps"), request.ints("cards"), request["cards_before_np"]?.jsonPrimitive?.int ?: 0)
         "battle" -> put("battle", toJson(flow.battleInfo()))
+        "farm" -> farm(flow, request["command"]!!.jsonPrimitive.content, this)
         "quit" -> put("quit", true)
         else -> error("unknown cmd $cmd")
+    }
+}
+
+/**
+ * FGA's own battle loop (AutoBattle) with a saved plan: it plays every turn from the skill
+ * command with its card priority, taps through results and Repeat, and stops at the next
+ * support select (support selection is Manual: the agent picks), at an empty AP bar (no refill
+ * resources are configured, so FGA never spends apples or Saint Quartz), or on any other stop.
+ * A fresh component per call, so the command is parsed anew and FGA's battle state starts clean.
+ */
+private fun farm(flow: Flow, command: String, out: kotlinx.serialization.json.JsonObjectBuilder) {
+    AutoSkillCommand.parse(command)  // a bad command fails here, before anything taps
+    FarmCommand.skillCommand = command
+    val component = DaggerBridgeComponent.create()
+    try {
+        component.autoBattle().script()
+    } catch (e: AutoBattle.ExitException) {
+        out.put("exit", e.reason::class.simpleName)
+        e.reason.cause?.let { out.put("error", "${it.javaClass.simpleName}: ${it.message}") }
+        out.put("runs", e.state.timesRan)
+        if (e.state.timesRan > 0) {
+            out.put("min_turns", e.state.minTurnsPerRun)
+            out.put("max_turns", e.state.maxTurnsPerRun)
+        }
+    } finally {
+        component.screenshots().close()
+        component.adb().close()
+        flow.afterFarm()
     }
 }
 

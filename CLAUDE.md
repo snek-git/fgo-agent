@@ -106,6 +106,10 @@ You forget everything between sessions unless you write it down.
   by ",", NPs as 4 5 6) and the turns it really took.
 - Pick the support the plan depends on (e.g. a Lv120 Morgan that starts at 120% NP) and say so
   in the plan, since farming repeats it every run.
+- Once a plan is saved, farm with `farm_battle(skill_command)` instead of playing turns: start
+  the quest yourself, call it, and FGA plays the battle, taps Repeat and stops at the next
+  support select. Pick the plan's support, then call it again. On an AP screen, refill with an
+  apple and call it again. If it reports more turns than waves, fix the plan.
 
 ## Rules
 

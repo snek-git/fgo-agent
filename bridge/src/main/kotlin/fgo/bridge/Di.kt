@@ -10,6 +10,7 @@ import io.github.fate_grand_automata.scripts.FgoGameAreaManager
 import io.github.fate_grand_automata.scripts.IFgoAutomataApi
 import io.github.fate_grand_automata.scripts.IImageLoader
 import io.github.fate_grand_automata.scripts.IScriptMessages
+import io.github.fate_grand_automata.scripts.entrypoints.AutoBattle
 import io.github.fate_grand_automata.scripts.locations.IScriptAreaTransforms
 import io.github.fate_grand_automata.scripts.locations.ScriptAreaTransforms
 import io.github.fate_grand_automata.scripts.models.AutoSkillCommand
@@ -132,4 +133,5 @@ interface BridgeComponent {
     fun connectionRetry(): ConnectionRetry
     fun withdraw(): Withdraw
     fun screenshots(): ScreenshotService
+    fun autoBattle(): AutoBattle
 }
