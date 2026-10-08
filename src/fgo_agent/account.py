@@ -199,6 +199,21 @@ def pending_quests(kind: str | None = None) -> str:
             + f"\nLOCKED ({len(locked_rows)}):\n" + ("\n".join(locked_rows) or "none"))
 
 
+def append_levels(tables: dict):
+    """A function giving the five append skill levels of a userSvt unit. Levels are kept per
+    copy (userSvtAppendPassiveSkillLv); an append unlocked with coins but never levelled only
+    shows in the per-servant unlock table (userSvtAppendPassiveSkill), at level 1."""
+    levels = {a["userSvtId"]: dict(zip(a["appendPassiveSkillNums"], a["appendPassiveSkillLvs"]))
+              for a in tables.get("userSvtAppendPassiveSkillLv", [])}
+    unlocked = {a["svtId"]: set(a["unlockNums"]) for a in tables.get("userSvtAppendPassiveSkill", [])}
+
+    def of(unit: dict) -> list[int]:
+        own, open_ = levels.get(unit["id"], {}), unlocked.get(unit["svtId"], set())
+        return [own.get(n, 1 if n in open_ else 0) for n in range(100, 105)]
+
+    return of
+
+
 def import_capture(path: Path) -> str:
     tables = _tables(path)
     units = tables["userSvt"] + tables.get("userSvtStorage", [])
@@ -206,8 +221,7 @@ def import_capture(path: Path) -> str:
     equips = {c["id"]: c for c in atlas.craft_essences()}
     bond = {c["svtId"]: c["friendshipRank"] for c in tables.get("userSvtCollection", [])}
     grand = {g["svtId"] for g in tables.get("userSvtGrand", [])}
-    appends = {a["userSvtId"]: dict(zip(a["appendPassiveSkillNums"], a["appendPassiveSkillLvs"]))
-               for a in tables.get("userSvtAppendPassiveSkillLv", [])}
+    appends_of = append_levels(tables)
     today = time.strftime("%Y-%m-%d")
 
     # Several copies of a servant can sit in the box (a fodder copy at Lv1): keep the best one.
@@ -231,8 +245,7 @@ def import_capture(path: Path) -> str:
             "ascension": u["limitCount"], "grails": u["exceedCount"], "fou": u["adjustAtk"] * 10,
             "bond": bond.get(svt_id), "grand": svt_id in grand,
         }
-        if u["id"] in appends:
-            entry["appends"] = [appends[u["id"]].get(n, 0) for n in range(100, 105)]
+        entry["appends"] = appends_of(u)
         kept = {k: v for k, v in old_roster.get(no, {}).items() if k in ("note", "np_version")}
         roster[no] = {**entry, **kept, "updated": today}
     memory._save(roster)
@@ -252,6 +265,6 @@ def import_capture(path: Path) -> str:
                    "count": len(group), **kept, "updated": today}
     memory.CES.write_text(json.dumps(ces, ensure_ascii=False, indent=2) + "\n")
 
-    with_appends = sum("appends" in e for e in roster.values())
+    with_appends = sum(any(e["appends"]) for e in roster.values())
     return (f"imported {path.name}: {len(roster)} servants ({sum(e['grand'] for e in roster.values())} Grand, "
             f"{with_appends} with appends), {len(ces)} craft essences")

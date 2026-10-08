@@ -53,8 +53,7 @@ def upgrades(tables: dict) -> dict:
     targets = _plan_targets()
     items = {i["itemId"]: i["num"] for i in tables.get("userItem", [])}
     coins = {c["svtId"]: c["num"] for c in tables.get("userSvtCoin", [])}
-    appends = {a["userSvtId"]: dict(zip(a["appendPassiveSkillNums"], a["appendPassiveSkillLvs"]))
-               for a in tables.get("userSvtAppendPassiveSkillLv", [])}
+    appends_of = account.append_levels(tables)
     qp_have = tables["userGame"][0]["qp"]
 
     def have(item: dict) -> int:
@@ -66,7 +65,7 @@ def upgrades(tables: dict) -> dict:
         t = targets.get(s["collectionNo"])
         if not t:
             continue
-        cur_app = [appends.get(u["id"], {}).get(n, 0) for n in range(100, 105)]
+        cur_app = appends_of(u)
         cur = {"ascension": u["limitCount"], "skills": [u["skillLv1"], u["skillLv2"], u["skillLv3"]],
                "appends": cur_app, "grails": u["exceedCount"]}
         goal = {"ascension": max(cur["ascension"], t["ascension"]),

@@ -38,7 +38,9 @@ sleep 4
 "${dev[@]}" shell am force-stop com.aniplex.fategrandorder
 "${dev[@]}" shell am start -n com.aniplex.fategrandorder/jp.delightworks.Fgo.player.AndroidPlugin > /dev/null
 
-# Tap through the title screen until the login call has been saved
+# Tap through the title screen until the login call has been saved. (440, 563) is the いいえ (No)
+# button of the "app did not start normally, clear the cache?" dialog FGO shows after a launch
+# that got cut off; anywhere else on the title screens a tap there just continues.
 for _ in $(seq 1 40); do
   sleep 4
   if [ "$(ls data/capture/login-top-*.json 2>/dev/null | wc -l)" -gt "$before" ]; then
@@ -48,7 +50,7 @@ for _ in $(seq 1 40); do
     uv run fgo-agent import-account
     exit 0
   fi
-  "${dev[@]}" shell input tap 640 400
+  "${dev[@]}" shell input tap 440 563
 done
 echo "no login response after 160s, see $log" >&2
 exit 1
