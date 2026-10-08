@@ -68,6 +68,11 @@ def remove(task_id: str) -> None:
     save([t for t in load() if t["id"] != task_id or t["status"] == "running"])
 
 
+def retry(task_id: str) -> None:
+    """Put a stopped or failed order back in line; the next run starts it in a fresh session."""
+    save([t | {"status": "queued"} if t["id"] == task_id and t["status"] in ("stopped", "failed") else t for t in load()])
+
+
 def update(task_id: str, **fields) -> None:
     save([t | fields if t["id"] == task_id else t for t in load()])
 

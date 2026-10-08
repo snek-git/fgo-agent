@@ -442,6 +442,8 @@ ApplicationWindow {
                                 Text { color: muted; font.pixelSize: 12
                                        text: modelData.kind + (modelData.apples !== null && modelData.apples !== undefined ? "  ·  ≤" + modelData.apples + " apples" : "")
                                              + (modelData.cost ? "  ·  $" + modelData.cost.toFixed(2) : "") } }
+                            SqButton { text: "Retry"; visible: modelData.status === "stopped" || modelData.status === "failed"
+                                       onClicked: api("POST", "/api/queue/" + modelData.id + "/retry", null, function (q) { queue = q }) }
                             SqButton { light: true; text: "✕"; implicitWidth: 34; visible: modelData.status !== "running"
                                        onClicked: api("DELETE", "/api/queue/" + modelData.id, null, function (q) { queue = q }) } } } }
                 Panel { width: parent.width; heading: "Custom order"

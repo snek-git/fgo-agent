@@ -59,6 +59,11 @@ async def queue_item(request: Request) -> JSONResponse:
     return JSONResponse(tasks.state())
 
 
+async def queue_retry(request: Request) -> JSONResponse:
+    tasks.retry(request.path_params["id"])
+    return JSONResponse(tasks.state())
+
+
 async def _service(unit: str, *command: str) -> str | None:
     proc = await asyncio.create_subprocess_exec(
         "systemd-run", "--user", f"--unit={unit}", "--collect", f"--working-directory={PROJECT}",
@@ -184,5 +189,6 @@ routes = [
     Route("/api/queue/run", run_queue, methods=["POST"]),
     Route("/api/queue/stop", stop_queue, methods=["POST"]),
     Route("/api/queue/{id}", queue_item, methods=["DELETE"]),
+    Route("/api/queue/{id}/retry", queue_retry, methods=["POST"]),
     Route("/api/sync", sync, methods=["POST"]),
 ]

@@ -353,6 +353,7 @@ async function renderQueue() {
       <div class="info"><div class="qt" style="font-size:14px">${esc(t.title)}</div>
         <div class="meta">${t.kind}${t.apples != null ? ` · ≤${t.apples} apples` : ""}${t.cost ? ` · $${t.cost.toFixed(2)}` : ""}${t.turns ? ` · ${t.turns} turns` : ""}</div>
         ${t.report ? `<details><summary>Report</summary><div class="note" style="white-space:pre-wrap">${esc(t.report)}</div></details>` : ""}</div>
+      ${t.status === "stopped" || t.status === "failed" ? `<button class="sq" data-retry="${t.id}">Retry</button>` : ""}
       ${t.status !== "running" ? `<button class="sq light" data-del="${t.id}">✕</button>` : ""}</div>`).join("")
     || '<div class="empty">no orders yet</div>';
 }
@@ -369,7 +370,7 @@ async function load() {
 }
 
 document.addEventListener("click", async (e) => {
-  const el = e.target.closest("[data-tab],[data-f],[data-q],[data-farm],[data-war],[data-del]");
+  const el = e.target.closest("[data-tab],[data-f],[data-q],[data-farm],[data-war],[data-del],[data-retry]");
   if (!el) return;
   try {
     if (el.dataset.tab) {
@@ -391,6 +392,8 @@ document.addEventListener("click", async (e) => {
       const w = B.story.find((x) => x.war === Number(el.dataset.war));
       await post("/api/queue", {kind: "story", title: `Clear ${w.name}`, payload: {war: w.war, war_name: w.name, quests: [...w.main, ...w.free].map((q) => ({quest_id: q.quest_id, name: q.name}))}, apples: 10});
       toast("story order added"); renderQueue();
+    } else if (el.dataset.retry) {
+      await post(`/api/queue/${el.dataset.retry}/retry`); renderQueue();
     } else if (el.dataset.del) {
       await fetch(`/api/queue/${el.dataset.del}`, {method: "DELETE"}); renderQueue();
     }
