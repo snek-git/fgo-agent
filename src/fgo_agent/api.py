@@ -60,8 +60,11 @@ async def queue_item(request: Request) -> JSONResponse:
 
 
 async def queue_retry(request: Request) -> JSONResponse:
+    """Put a stopped or failed order back in line and start the runner unless something is playing."""
     tasks.retry(request.path_params["id"])
-    return JSONResponse(tasks.state())
+    if _busy():
+        return JSONResponse(tasks.state())
+    return await run_queue(request)
 
 
 async def _service(unit: str, *command: str) -> str | None:
