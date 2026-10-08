@@ -100,13 +100,24 @@ def find_owned(effect: str, target: str | None = None, class_name: str | None = 
             + "\n".join(rows))
 
 
-QUEST_KINDS = {1003: "interlude", 1001: "strengthening"}  # Atlas war ids: 幕間の物語, 強化クエスト
+STRENGTHENING_WAR = 1001  # Atlas war 強化クエスト
 SELECTED = 16  # userSvt status flag for servants marked 選択 in the game
 
 
-def _quest_wars() -> dict[int, tuple[int, dict]]:
+def _quest_wars() -> dict[int, tuple[str, dict]]:
+    """Interludes and strengthening quests by id, with their kind. Interludes are quest type
+    "friendship" wherever Atlas files them: the older ones sit in the main story's
+    singularities (Enkidu's first is in the 7th), not in war 1003 幕間の物語."""
     wars = atlas._cached("nice_war_lang_en.json", f"{atlas.API}/export/JP/nice_war_lang_en.json", atlas.EXPORT_MAX_AGE)
-    return {q["id"]: (w["id"], q) for w in wars if w["id"] in QUEST_KINDS for spot in w["spots"] for q in spot["quests"]}
+    quests = {}
+    for w in wars:
+        for spot in w["spots"]:
+            for q in spot["quests"]:
+                if q.get("type") == "friendship":
+                    quests[q["id"]] = ("interlude", q)
+                elif w["id"] == STRENGTHENING_WAR:
+                    quests[q["id"]] = ("strengthening", q)
+    return quests
 
 
 def pending_quests(kind: str | None = None) -> str:
@@ -146,11 +157,11 @@ def pending_quests(kind: str | None = None) -> str:
         for qid in s.get("relateQuestIds", []):
             if qid in cleared or qid not in quests:
                 continue
-            war, q = quests[qid]
-            if kind and QUEST_KINDS[war] != kind:
+            quest_kind, q = quests[qid]
+            if kind and quest_kind != kind:
                 continue
             reasons = [m for c in q.get("releaseConditions", []) if (m := missing(c))]
-            row = (f"{'★ ' if svt_id in favorite else ''}#{s['collectionNo']} {s['name']}: {QUEST_KINDS[war]} "
+            row = (f"{'★ ' if svt_id in favorite else ''}#{s['collectionNo']} {s['name']}: {quest_kind} "
                    f"「{q['name']}」 (quest {qid}, {q.get('consume', '?')} AP, {len(q['phases'])} phases)")
             if reasons:
                 locked_rows.append(f"{row} needs {', '.join(sorted(set(reasons)))}")
