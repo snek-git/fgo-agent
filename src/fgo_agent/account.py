@@ -120,6 +120,12 @@ def _quest_wars() -> dict[int, tuple[str, dict]]:
     return quests
 
 
+def never_opens(quest: dict) -> bool:
+    """Hidden copies of quests (e.g. 4000199, a second Ordeal Call prologue) carry a release
+    condition that is always false: the game never shows them."""
+    return any(c["type"] == "forceFalse" for c in quest.get("releaseConditions", []))
+
+
 def owned_servants(tables: dict) -> dict[int, dict]:
     """The best copy of each owned servant, by svtId."""
     servants = {s["id"] for s in atlas.servants()}
@@ -170,7 +176,7 @@ def quest_rows(tables: dict, kind: str | None = None) -> list[dict]:
             if qid in cleared or qid not in quests:
                 continue
             quest_kind, q = quests[qid]
-            if kind and quest_kind != kind:
+            if never_opens(q) or (kind and quest_kind != kind):
                 continue
             rows.append({
                 "kind": quest_kind, "quest_id": qid, "name": q["name"], "ap": q.get("consume"),

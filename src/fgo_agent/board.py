@@ -135,7 +135,7 @@ def story(tables: dict) -> list[dict]:
         todo = [{"quest_id": q["id"], "name": q["name"], "type": q["type"], "ap": q.get("consume"), "spot": spot["name"]}
                 for spot in w["spots"] for q in spot["quests"]
                 if q.get("type") in ("main", "free") and q["id"] not in cleared
-                and q.get("consume", 0) < 999 and q.get("closedAt", 2e9) > now]
+                and q.get("consume", 0) < 999 and q.get("closedAt", 2e9) > now and not account.never_opens(q)]
         if todo:
             groups.append({"war": w["id"], "name": w["longName"].replace("\n", " "), "banner": w.get("banner"),
                            "main": [q for q in todo if q["type"] == "main"],
