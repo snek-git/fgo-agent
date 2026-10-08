@@ -438,6 +438,11 @@ def farm_battle(skill_command: str) -> list:
     support from the plan, then call this again), when AP runs out (refill with an apple, then
     call again), or on anything it does not handle. Reports runs done and turns per run: a
     3-wave plan should take 3 turns; if not, the plan needs fixing."""
+    # On a menu, FGA's loop would click whatever quest it last saw: only start it in a battle
+    screen = bridge().call("screen")["screen"]
+    if screen != "battle":
+        return _view({"screen": screen, "farm_error": "farm_battle starts on the battle screen: pick the support "
+                                                      "and start the quest first"})
     result = bridge().call("farm", command=skill_command)
     waves = skill_command.count(",") + 1
     state = {"farm_exit": result.get("exit"), "runs": result.get("runs", 0)}

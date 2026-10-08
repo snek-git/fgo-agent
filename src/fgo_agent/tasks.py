@@ -36,7 +36,9 @@ the free quests (each pays Saint Quartz on its first clear). Quests:
    turn). Check its enemies with find_quest + prepare_battle.
 2. Exploratory runs: find a party, support and turn plan that clears it in exactly 3 turns. Try at
    most 3 runs. Write the plan with save_farm_plan (party, support, FGA skill command per wave).
-3. Then farm it with that plan until you have {count} more, or the apple budget is spent.
+3. Then farm it with farm_battle(skill_command): start each run yourself (pick the plan's
+   support; after the first run FGA's Repeat brings you back to support select), and FGA plays
+   the battle. Keep going until you have {count} more, or the apple budget is spent.
 If no 3-turn plan works, farm with the best plan you found and say how many turns it takes.""",
     "custom": "{text}",
 }
