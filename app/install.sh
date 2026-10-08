@@ -21,5 +21,21 @@ Keywords=fgo;fate;grand;order;
 StartupWMClass=scrcpy
 EOF
 
+project="$(dirname "$here")"
+cat > "$HOME/.local/share/applications/chaldea-terminal.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Chaldea Terminal
+GenericName=FGO account board
+Comment=What is left on your FGO account, and orders for the agent
+Exec=uv run --project $project --extra app fgo-agent app
+Path=$project
+Icon=$here/chaldea-terminal.svg
+Terminal=false
+Categories=Game;
+Keywords=fgo;chaldea;board;agent;
+StartupWMClass=chaldea-terminal
+EOF
+
 update-desktop-database "$HOME/.local/share/applications" 2>/dev/null || true
-echo "installed: fgo command and Fate/Grand Order app entry"
+echo "installed: fgo command, Fate/Grand Order and Chaldea Terminal app entries"

@@ -14,6 +14,8 @@ def main() -> None:
     shot = sub.add_parser("shot", help="save a screenshot")
     shot.add_argument("path", nargs="?", default="screen.png")
     sub.add_parser("bench", help="time FGA's screen detection through the bridge")
+    desk = sub.add_parser("app", help="desktop app for the board (needs the app extra: uv run --extra app)")
+    desk.add_argument("--port", type=int, default=8765)
     sub.add_parser("runner", help="work through the board's task queue (run as a user service)")
     watch = sub.add_parser("watch", help="follow a headless play log live (latest by default)")
     watch.add_argument("log", nargs="?")
@@ -36,6 +38,12 @@ def main() -> None:
         from .view import run as view_run
 
         view_run(args.host, args.port)
+        return
+
+    if args.cmd == "app":
+        from .desktop import main as app_main
+
+        app_main(args.port)
         return
 
     if args.cmd == "runner":
