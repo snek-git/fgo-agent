@@ -105,7 +105,8 @@ You forget everything between sessions unless you write it down.
 - Farming aims for 3 turns: one wave per turn. Before farming a quest, check `farm_plans`; if
   none fits, do up to 3 exploratory runs to find a party, support and turn plan that clears it in
   3 turns, then `save_farm_plan` with the FGA skill command for the whole battle (waves separated
-  by ",", NPs as 4 5 6) and the turns it really took.
+  by ",#,", an extra turn inside a wave by ",", NPs as 4 5 6, e.g. "gh6,#,a4,#,b1de1if14") and
+  the turns it really took.
 - Pick the support the plan depends on (e.g. a Lv120 Morgan that starts at 120% NP) and say so
   in the plan, since farming repeats it every run.
 - Once a plan is saved, farm with `farm_battle(skill_command)` instead of playing turns: start

@@ -416,6 +416,15 @@ def write_note(topic: str, text: str, replace: bool = False) -> str:
     return memory.write_note(topic, text, replace)
 
 
+def _command_error(command: str) -> str | None:
+    """FGA reads ',' as the next turn of the same wave and only ',#,' as the next wave, so a
+    3-wave plan written "a4,b5,c6" leaves waves 2 and 3 with no orders (FGA just plays cards)."""
+    if "," in command and ",#," not in command:
+        return (f"skill command {command!r} has turns but no wave marks: FGA starts the next wave only at ',#,' "
+                f"(',' is another turn in the same wave). One turn per wave: {command.replace(',', ',#,')!r}")
+    return None
+
+
 @mcp.tool()
 def save_farm_plan(
     quest_id: int,
@@ -431,10 +440,13 @@ def save_farm_plan(
     """Save a farming plan that worked, so later runs (and FGA's own farming loop) reuse it.
     party: your servants with their CEs in slot order, e.g. ["Mélusine (Ruler) + Kaleidoscope", ...].
     support: the support it needs, with anything the plan depends on (NP level, CE, Lv120 120% NP
-    start). skill_command: FGA notation for the whole battle, waves separated by ',' and NPs as
-    4 5 6, e.g. "d4,ac5,j6". turns: how many turns the clear actually took (aim for 3, one per
-    wave). Overwrites the plan saved for that quest."""
+    start). skill_command: FGA notation for the whole battle: waves separated by ',#,', extra
+    turns inside a wave by ',', NPs as 4 5 6, e.g. "d4,#,ac5,#,j6". turns: how many turns the clear
+    actually took (aim for 3, one per wave). Overwrites the plan saved for that quest."""
     from .board import FARMS
+
+    if error := _command_error(skill_command):
+        return error
 
     plan = {"quest_id": quest_id, "quest_name": quest_name, "target_item": target_item, "party": party,
             "support": support, "mystic_code": mystic_code, "skill_command": skill_command, "turns": turns,
@@ -448,18 +460,20 @@ def save_farm_plan(
 def farm_battle(skill_command: str) -> list:
     """Farm with a saved plan using FGA's own battle loop, no turn-by-turn play from you.
     Start it on the battle screen: party set, support picked, quest started. FGA plays every
-    turn from skill_command (the plan's FGA notation, waves separated by ',') with its card
+    turn from skill_command (the plan's FGA notation, waves separated by ',#,') with its card
     priority, taps through results and Repeat, and returns at the next support select (pick the
     support from the plan, then call this again), when AP runs out (refill with an apple, then
     call again), or on anything it does not handle. Reports runs done and turns per run: a
     3-wave plan should take 3 turns; if not, the plan needs fixing."""
+    if error := _command_error(skill_command):
+        return _view({"farm_error": error})
     # On a menu, FGA's loop would click whatever quest it last saw: only start it in a battle
     screen = bridge().call("screen")["screen"]
     if screen != "battle":
         return _view({"screen": screen, "farm_error": "farm_battle starts on the battle screen: pick the support "
                                                       "and start the quest first"})
     result = bridge().call("farm", command=skill_command)
-    waves = skill_command.count(",") + 1
+    waves = skill_command.count(",#,") + 1
     state = {"farm_exit": result.get("exit"), "runs": result.get("runs", 0)}
     if result.get("error"):
         state["farm_error"] = result["error"]
