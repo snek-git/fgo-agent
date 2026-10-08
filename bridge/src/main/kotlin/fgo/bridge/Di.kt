@@ -134,4 +134,5 @@ interface BridgeComponent {
     fun withdraw(): Withdraw
     fun screenshots(): ScreenshotService
     fun autoBattle(): AutoBattle
+    fun exitManager(): ExitManager
 }

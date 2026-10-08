@@ -15,6 +15,8 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.concurrent.thread
 
 /**
  * JSON lines on stdin/stdout. Each request is {"cmd": ..., ...}; each reply is
@@ -89,15 +91,42 @@ private fun handle(flow: Flow, request: JsonObject): JsonObject = buildJsonObjec
  * support select (support selection is Manual: the agent picks), at an empty AP bar (no refill
  * resources are configured, so FGA never spends apples or Saint Quartz), or on any other stop.
  * A fresh component per call, so the command is parsed anew and FGA's battle state starts clean.
+ *
+ * A watchdog hands the game back to the agent when FGA's loop has nothing to do: on a menu or
+ * map (a quest whose last clear has no Repeat, a withdraw), or on a screen none of FGA's checks
+ * know for STUCK_SECONDS. FGA would otherwise wait there forever, or tap the top quest of a list.
  */
+private const val STUCK_SECONDS = 45
+private const val WATCH_SECONDS = 2
+
 private fun farm(flow: Flow, command: String, out: kotlinx.serialization.json.JsonObjectBuilder) {
     AutoSkillCommand.parse(command)  // a bad command fails here, before anything taps
     FarmCommand.skillCommand = command
     val component = DaggerBridgeComponent.create()
+    val handBack = AtomicReference<String?>(null)  // read by the command thread
+    val watchdog = thread(isDaemon = true, name = "farm-watchdog") {
+        var menu = 0
+        var unknown = 0
+        while (handBack.get() == null) {
+            try {
+                Thread.sleep(WATCH_SECONDS * 1000L)
+                val screen = flow.screen()
+                menu = if (screen == "menu") menu + 1 else 0
+                unknown = if (screen == "unknown") unknown + 1 else 0
+                if (menu >= 2) handBack.set("menu")
+                else if (unknown * WATCH_SECONDS >= STUCK_SECONDS) handBack.set("stuck")
+            } catch (_: InterruptedException) {
+                return@thread
+            } catch (e: Exception) {
+                System.err.println("farm watchdog: ${e.message}")
+            }
+        }
+        component.exitManager().exit()
+    }
     try {
         component.autoBattle().script()
     } catch (e: AutoBattle.ExitException) {
-        out.put("exit", e.reason::class.simpleName)
+        out.put("exit", handBack.get() ?: e.reason::class.simpleName)
         e.reason.cause?.let { out.put("error", "${it.javaClass.simpleName}: ${it.message}") }
         out.put("runs", e.state.timesRan)
         if (e.state.timesRan > 0) {
@@ -105,6 +134,7 @@ private fun farm(flow: Flow, command: String, out: kotlinx.serialization.json.Js
             out.put("max_turns", e.state.maxTurnsPerRun)
         }
     } finally {
+        watchdog.interrupt()
         component.screenshots().close()
         component.adb().close()
         flow.afterFarm()

@@ -463,8 +463,11 @@ def farm_battle(skill_command: str) -> list:
     turn from skill_command (the plan's FGA notation, waves separated by ',#,') with its card
     priority, taps through results and Repeat, and returns at the next support select (pick the
     support from the plan, then call this again), when AP runs out (refill with an apple, then
-    call again), or on anything it does not handle. Reports runs done and turns per run: a
-    3-wave plan should take 3 turns; if not, the plan needs fixing."""
+    call again), or on anything it does not handle. It also hands back when it has nothing to
+    do: farm_exit "menu" (back on a quest list or map, e.g. the last clear of a quest has no
+    Repeat) or "stuck" (a screen it does not know for 45 s): look at the screen and carry on
+    yourself. Reports runs done and turns per run: a 3-wave plan should take 3 turns; if not,
+    the plan needs fixing."""
     if error := _command_error(skill_command):
         return _view({"farm_error": error})
     # On a menu, FGA's loop would click whatever quest it last saw: only start it in a battle
