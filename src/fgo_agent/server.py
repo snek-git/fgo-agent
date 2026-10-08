@@ -21,6 +21,8 @@ from .device import Device, encode_jpeg
 INSTRUCTIONS = """\
 You are playing Fate/Grand Order (JP) on an Android container. The screen is 1280x720 and
 tap/swipe coordinates are those pixels, so read positions straight off the screenshot.
+Call the game tools one at a time, never several in parallel: they all act on the same screen,
+and parallel calls race (a tap and open_cards at once leave the card screen out of sync).
 Start with `look`. After anything that starts animations or loading (a battle turn, starting a
 quest, leaving results) call `advance`: it runs FGA's handling of story skip, results, drops,
 bond and wave transitions, and returns when you have a decision to make.

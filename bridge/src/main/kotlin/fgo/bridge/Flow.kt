@@ -127,9 +127,12 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
      * animations, reward popups, rank-up) only make sense inside its own loop: on a status or
      * details screen they match by accident, so look() never reports them.
      */
-    fun screen(): String = if (cardsOpen) "cards" else useSameSnapIn {
-        screens.firstOrNull { it.name !in loopOnly && it.check() }?.name ?: "unknown"
-    }.also(::noteScreen)
+    fun screen(): String {
+        syncCardsOpen()
+        return if (cardsOpen) "cards" else useSameSnapIn {
+            screens.firstOrNull { it.name !in loopOnly && it.check() }?.name ?: "unknown"
+        }.also(::noteScreen)
+    }
 
     /**
      * Like AutoBattle.menu()/repeatQuest(): these screens only show outside a battle, so the next
@@ -147,8 +150,17 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
         "death_animation", "between_waves", "bond10_reward", "ce_reward", "rank_up", "friend_request"
     )
 
+    /**
+     * The card screen is known by flow, so a tap that closes it (or a parallel call racing
+     * open_cards) leaves the flag stale. The command screen showing means it is closed.
+     */
+    private fun syncCardsOpen() {
+        if (cardsOpen && battle.isIdle()) cardsOpen = false
+    }
+
     /** The agent can reach a battle through look() as well as advance(), so act/cards set up the turn too. */
     private fun requireCommandScreen() {
+        syncCardsOpen()
         require(!cardsOpen) { "the card screen is open: play_cards or close_cards first" }
         require(battle.isIdle()) { "not on the battle command screen" }
         startTurn()
@@ -268,6 +280,7 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
 
     /** Leave the card screen (AttackScreenLocations.backClick). */
     fun back() {
+        syncCardsOpen()
         require(cardsOpen) { "the card screen is not open" }
         locations.attack.backClick.click()
         locations.battle.screenCheckRegion.exists(images[Images.BattleScreen], 5.seconds)
@@ -276,6 +289,7 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
 
     /** Card.clickCommandCards() with the agent's picks instead of card priority. */
     fun play(nps: List<Int>, faces: List<Int>, cardsBeforeNp: Int) {
+        syncCardsOpen()
         require(cardsOpen) { "open the cards first" }
         require(nps.size + faces.size in 1..3) { "pick 1 to 3 cards in total" }
         require(cardsBeforeNp in 0..faces.size) { "cards_before_np is more than the face cards picked" }

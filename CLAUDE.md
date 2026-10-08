@@ -22,6 +22,8 @@ watches your session live (`fgo-agent view`), and these lines are how they follo
 - Outside battle, navigate with `tap`, `swipe`, `back`. A long-press is a `swipe` with the same
   start and end point and ms=1500 (opens servant details and battle status).
 - A `warning` in a result means the screen stopped changing: do not repeat the same action.
+- One game tool call at a time. They all drive the same screen, so parallel calls race: a tap
+  and `open_cards` sent together left the card screen out of sync with the bridge.
 
 ## Memory
 
