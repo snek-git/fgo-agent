@@ -8,5 +8,6 @@ bridge/build/
 bridge/build.log
 *.png
 !bridge/src/main/resources/*.png
+!src/fgo_agent/assets/*.png
 logs/
 data/

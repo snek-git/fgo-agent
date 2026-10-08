@@ -262,7 +262,12 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
      * One turn's actions in FGA's skill-command notation, run through FGA's Caster
      * (same dispatch as AutoSkill.act). NPs and wave/turn separators are not allowed here.
      */
-    fun act(command: String) {
+    /**
+     * Returns whether the command screen came back afterwards. It does not when a dialog stayed
+     * open: the ally picker of a skill given no target, or the info window of a skill on
+     * cooldown whose close tap missed. Both break the next card or skill step.
+     */
+    fun act(command: String): Boolean {
         val stages = AutoSkillCommand.parse(command).stages
         require(stages.size == 1 && stages[0].size == 1) { "one turn at a time: no ',' or '#'" }
         requireCommandScreen()
@@ -278,6 +283,7 @@ class Flow(private val component: BridgeComponent) : IFgoAutomataApi by componen
                 is AutoSkillAction.OrderChange -> caster.orderChange(action)
             }
         }
+        return locations.battle.screenCheckRegion.exists(images[Images.BattleScreen], 4.seconds)
     }
 
     /** Battle.clickAttack(): open the cards and parse them with FGA's CardParser. */

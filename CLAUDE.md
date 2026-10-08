@@ -88,9 +88,11 @@ You forget everything between sessions unless you write it down.
    t1-t3 (fixed positions in the top HP-bar row, left to right; empty when a wave has fewer
    enemies), order change "x" + starting 1-3 + backline 1-3. Skip greyed out skills or ones
    showing a cooldown number.
-2. `open_cards`: type, weak/resist, stunned, and which party member owns each card. The owner
-   field is unreliable for support servants: check card faces on the screenshot before
-   building a brave chain.
+2. `open_cards`: type, weak/resist, stunned, which party member owns each card, and
+   `support: true` on the support's cards (read from the card's label). Trust `support` over
+   the owner number, which FGA often gets wrong for the support; when the buff icons cover
+   the label completely both can miss, so check card faces on the screenshot before a brave
+   chain.
 3. `play_cards(cards=[...], nps=[...])`: three picks in total. Lead with Arts to charge NP,
    Buster to hit hard. Brave and colour chains add damage only to face cards, not NPs. Grand
    servants' passive invincibility triggers only when the cards do not form a chain, so on a

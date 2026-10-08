@@ -61,7 +61,7 @@ private fun handle(flow: Flow, request: JsonObject): JsonObject = buildJsonObjec
             put("screen", screen)
             if (screen == "battle") put("battle", toJson(flow.battleInfo()))
         }
-        "act" -> flow.act(request["command"]!!.jsonPrimitive.content)
+        "act" -> put("command_screen", flow.act(request["command"]!!.jsonPrimitive.content))
         "cards" -> putJsonArray("cards") {
             for (card in flow.cards()) {
                 add(buildJsonObject {

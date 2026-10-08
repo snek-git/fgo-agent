@@ -181,15 +181,26 @@ def act(command: str) -> list:
     top HP-bar row, left to right; a wave with fewer enemies leaves some empty. Order change:
     x then the starting member 1-3 and backline member 1-3, e.g. "x13". NP-charge command
     spell: o then target. Several actions chain: "ad3j"."""
-    bridge().call("act", command=command)
-    return _view()
+    result = bridge().call("act", command=command)
+    if result.get("command_screen", True):
+        return _view()
+    return _view({"warning": "the battle command screen did not come back: a dialog is still open. Usually a skill "
+                             "that needs an ally target was given none (write it as e.g. \"h3\"), or a skill on "
+                             "cooldown opened its info window. Read the screenshot, close or answer the dialog with "
+                             "tap, then continue."})
 
 
 @mcp.tool()
 def open_cards() -> list:
     """Battle: press Attack and read the hand with FGA's card parser: type, weak/resist,
-    stunned, and which party member owns each card (servant 1-6, 0 unknown)."""
+    stunned, and which party member owns each card (servant 1-6, 0 unknown). support: true
+    means the card carries the support's label, read from the screen: trust it over the
+    servant number, which FGA often gets wrong for the support's cards."""
+    from .cardmarks import support_cards
+
     cards = bridge().call("cards")["cards"]
+    for card, mark in zip(cards, support_cards(device().screenshot())):
+        card["support"] = mark
     return _view({"screen": "cards", "cards": cards})
 
 
