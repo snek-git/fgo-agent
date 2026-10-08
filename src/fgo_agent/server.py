@@ -336,6 +336,7 @@ def estimate_np_damage(
     extra_atk: int | None = None,
     ratio: float = 1.0,
     enemy_hp: int | None = None,
+    support: bool = False,
 ) -> str:
     """Estimate one NP's damage before spending resources: is this NP alone enough for the bar?
     Buffs are percentages summed from everything active (30 = +30%): atk_up (ATK up), card_up
@@ -346,12 +347,15 @@ def estimate_np_damage(
     NP, 1000 Fou, no CE); extra_atk overrides Fou + CE ATK. ratio is the calibration from this
     fight: real HP drop of an earlier NP divided by its estimate. enemy_class and
     enemy_attribute come from prepare_battle (e.g. "saber"/"human"). Ignores crits, cards, and
-    enemy damage cut or special defenses; read those off the boss's status and leave margin."""
+    enemy damage cut or special defenses; read those off the boss's status and leave margin.
+    support=True for a friend's support: the roster describes the user's own copy, so it is not
+    used; give level, np_level and extra_atk (2000 for gold Fou, plus the CE's ATK) from the
+    support list instead."""
     matches = atlas.find_servants(servant, limit=1)
     if not matches:
         return f"no servant matches {servant!r}"
     s = matches[0]
-    mine = memory.owned(s["collectionNo"]) or {}
+    mine = {} if support else memory.owned(s["collectionNo"]) or {}
     lvl = level or mine.get("level") or s["lvMax"]
     npl = np_level or mine.get("np") or 1
     if extra_atk is None:
