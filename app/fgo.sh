@@ -32,7 +32,9 @@ fi
 "$PROJECT/scripts/emu.sh" up || fail "could not start the emulator or FGO"
 
 # An agent session (scripts/play.sh) owns the input while it runs
-agent_running() { pgrep -f "claude.*--strict-mcp-config" >/dev/null; }
+# Only scripts/play.sh passes this project's .mcp.json: other claude processes (the desktop
+# app's own sessions) also use --strict-mcp-config and must not lock the window
+agent_running() { pgrep -f -- "--mcp-config \.mcp\.json" >/dev/null; }
 control=()
 if agent_running; then
   control=(--no-control)
